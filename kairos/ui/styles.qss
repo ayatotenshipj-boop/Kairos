@@ -1,0 +1,6 @@
+QMainWindow {
+    background-color: #0f0f0f;
+    color: #e0e0e0;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+}
