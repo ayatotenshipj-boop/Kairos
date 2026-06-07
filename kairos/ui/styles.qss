@@ -153,3 +153,19 @@ QPushButton:hover {
 #saveButton:hover {
     background-color: #1f3548;
 }
+
+#processButton {
+    background-color: #1a2a3a;
+    border-color: #4a9eff;
+    color: #4a9eff;
+}
+
+#processButton:hover {
+    background-color: #1f3548;
+}
+
+#processButton:disabled {
+    background-color: #1a1a1a;
+    border-color: #1e1e1e;
+    color: #555555;
+}

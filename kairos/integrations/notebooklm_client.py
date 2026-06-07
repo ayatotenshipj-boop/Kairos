@@ -81,6 +81,7 @@ async def _process_async(text: str, prompt: str) -> str:
                 notebook_id=notebook.id,
                 title="Conteúdo extraído",
                 content=text,
+                wait=True,
             )
 
             logger.info("Processando com o prompt...")

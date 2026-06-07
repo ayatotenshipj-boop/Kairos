@@ -210,6 +210,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.prompt_selector)
 
         self.process_button = QPushButton("▶ Processar")
+        self.process_button.setObjectName("processButton")
         self.process_button.setEnabled(False)
         self.process_button.clicked.connect(self._on_process_clicked)
         layout.addWidget(self.process_button)

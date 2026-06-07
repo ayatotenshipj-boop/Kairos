@@ -46,7 +46,11 @@ def log_session(
         date_str = now.strftime("%Y-%m-%d")
         time_str = now.strftime("%H:%M")
 
-        source_name = Path(source).name if source else source
+        if source and source.startswith("http"):
+            source_name = source
+        else:
+            source_name = Path(source).name if source else source
+
         duration_str = _format_duration(duration_seconds)
 
         row = (

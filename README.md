@@ -427,7 +427,7 @@ source .venv/bin/activate
 ./build.sh
 
 # Executar o binário gerado
-./kairos.dist/kairos
+./dist/kairos
 ```
 
 O `build.sh` usa as flags:
@@ -447,21 +447,17 @@ python -m nuitka \
 
 ```
 # Interface
-PySide6==6.11.1
+# PySide6 instalado via pacman: sudo pacman -S pyside6
 
 # Extração de PDF
 pymupdf4llm==0.0.17
 
 # YouTube
-youtube-transcript-api==0.6.3
-yt-dlp==2026.5.1
+youtube-transcript-api==1.2.4
+yt-dlp==2026.3.17
 
 # Automação NotebookLM
-notebooklm-py[browser]==0.9.0
-
-# Utilitários
-pathlib2==2.3.7
-```
+notebooklm-py==0.7.0
 
 > **Importante:** versões travadas intencionalmente.
 > `notebooklm-py` e `yt-dlp` mudam com frequência para acompanhar mudanças no Google/YouTube.

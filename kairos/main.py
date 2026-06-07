@@ -1,3 +1,4 @@
+import logging
 import sys
 from pathlib import Path
 
@@ -9,6 +10,10 @@ from kairos.ui.main_window import MainWindow
 
 def main():
     """Ponto de entrada da aplicação Kairos."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
     app = QApplication(sys.argv)
     app.setApplicationName("Kairos")
 
