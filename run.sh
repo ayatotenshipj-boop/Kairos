@@ -7,7 +7,7 @@ set -e
 # Create virtual environment if it doesn't exist
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
-    python -m venv .venv
+    python -m venv .venv --system-site-packages
 fi
 
 # Activate virtual environment
