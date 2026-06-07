@@ -124,6 +124,8 @@ class MainWindow(QMainWindow):
         self._processor_worker = None
         self._writer_worker = None
         self._prompts: list[dict] = []
+        # Captura imutável do source no início do pipeline
+        self._pipeline_source: str | None = None
         self._setup_ui()
         self._load_prompts()
 
@@ -236,7 +238,13 @@ class MainWindow(QMainWindow):
     def _on_file_loaded(self, source: str):
         """Guarda a fonte (path ou URL), habilita o processamento e atualiza o status."""
         self._loaded_file = source
-        self.process_button.setEnabled(True)
+        # Só habilita botão se nenhum worker estiver ativo
+        any_worker_running = any(
+            w is not None and w.isRunning()
+            for w in (self._extraction_worker, self._processor_worker, self._writer_worker)
+        )
+        if not any_worker_running:
+            self.process_button.setEnabled(True)
         if source.startswith("http"):
             display = source if len(source) <= 52 else source[:49] + "..."
             self.status_label.setText(f"Pronto: {display}")
@@ -249,21 +257,39 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Erro: nenhum arquivo carregado")
             return
 
+        # Previne race condition: não inicia novo worker se já houver um rodando
+        if self._extraction_worker is not None and self._extraction_worker.isRunning():
+            return
+        if self._processor_worker is not None and self._processor_worker.isRunning():
+            return
+        if self._writer_worker is not None and self._writer_worker.isRunning():
+            return
+
+        # Captura source imutável no início do pipeline
+        self._pipeline_source = self._loaded_file
+
         self.process_button.setEnabled(False)
-        is_youtube = self._loaded_file.startswith("http")
+        is_youtube = self._pipeline_source.startswith("http")
         self.status_label.setText(
             "Buscando transcrição..." if is_youtube else "Extraindo texto..."
         )
         self._session_start = time.monotonic()
 
-        self._extraction_worker = ExtractionWorker(self._loaded_file)
+        self._extraction_worker = ExtractionWorker(self._pipeline_source)
         self._extraction_worker.finished.connect(self._on_extraction_finished)
         self._extraction_worker.error.connect(self._on_extraction_error)
         self._extraction_worker.start()
 
     def _on_extraction_finished(self, text: str):
         """Chamado quando a extração termina — dispara o processamento."""
+        # Proteção contra race condition: ignora callbacks de workers antigos
+        worker = self.sender()
+        if worker is not self._extraction_worker:
+            return
+
         self._extracted_text = text
+        self._extraction_worker.finished.disconnect(self._on_extraction_finished)
+        self._extraction_worker.error.disconnect(self._on_extraction_error)
         self._extraction_worker = None
 
         # Pega o prompt selecionado
@@ -289,11 +315,18 @@ class MainWindow(QMainWindow):
 
     def _on_extraction_error(self, error_msg: str):
         """Chamado quando a extração falha."""
+        # Proteção contra race condition: ignora callbacks de workers antigos
+        worker = self.sender()
+        if worker is not self._extraction_worker:
+            return
+
         self.status_label.setText(f"Erro: {error_msg}")
         self.process_button.setEnabled(True)
+        self._extraction_worker.finished.disconnect(self._on_extraction_finished)
+        self._extraction_worker.error.disconnect(self._on_extraction_error)
         self._extraction_worker = None
         log_session(
-            source=self._loaded_file or "",
+            source=self._pipeline_source or "",
             prompt_label=self._current_prompt_label or "",
             status="✗",
             duration_seconds=self._session_elapsed(),
@@ -302,12 +335,19 @@ class MainWindow(QMainWindow):
 
     def _on_processing_finished(self, result: str, mode: str):
         """Chamado quando o processamento termina — dispara a escrita da nota."""
+        # Proteção contra race condition: ignora callbacks de workers antigos
+        worker = self.sender()
+        if worker is not self._processor_worker:
+            return
+
+        self._processor_worker.finished.disconnect(self._on_processing_finished)
+        self._processor_worker.error.disconnect(self._on_processing_error)
         self._processor_worker = None
         self._current_mode = mode
         self.status_label.setText("Salvando nota no Obsidian...")
 
         self._writer_worker = WriterWorker(
-            result, self._loaded_file, self._current_prompt_label or "", mode,
+            result, self._pipeline_source, self._current_prompt_label or "", mode,
             session_duration=_fmt_duration(self._session_elapsed()),
         )
         self._writer_worker.finished.connect(self._on_write_finished)
@@ -316,11 +356,18 @@ class MainWindow(QMainWindow):
 
     def _on_processing_error(self, error_msg: str):
         """Chamado quando o processamento falha."""
+        # Proteção contra race condition: ignora callbacks de workers antigos
+        worker = self.sender()
+        if worker is not self._processor_worker:
+            return
+
         self.status_label.setText(f"Erro no processamento: {error_msg}")
         self.process_button.setEnabled(True)
+        self._processor_worker.finished.disconnect(self._on_processing_finished)
+        self._processor_worker.error.disconnect(self._on_processing_error)
         self._processor_worker = None
         log_session(
-            source=self._loaded_file or "",
+            source=self._pipeline_source or "",
             prompt_label=self._current_prompt_label or "",
             status="✗",
             duration_seconds=self._session_elapsed(),
@@ -334,6 +381,11 @@ class MainWindow(QMainWindow):
 
     def _on_write_finished(self, path: str):
         """Chamado quando a nota é salva — exibe caminho clicável."""
+        # Proteção contra race condition: ignora callbacks de workers antigos
+        worker = self.sender()
+        if worker is not self._writer_worker:
+            return
+
         elapsed = self._session_elapsed()
         filename = escape(Path(path).name)
         uri = Path(path).as_uri()
@@ -347,9 +399,11 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f'Nota salva: {link}')
 
         self.process_button.setEnabled(True)
+        self._writer_worker.finished.disconnect(self._on_write_finished)
+        self._writer_worker.error.disconnect(self._on_write_error)
         self._writer_worker = None
         log_session(
-            source=self._loaded_file or "",
+            source=self._pipeline_source or "",
             prompt_label=self._current_prompt_label or "",
             status="✓" if self._current_mode == "notebooklm" else "⚠ local",
             duration_seconds=elapsed,
@@ -358,12 +412,19 @@ class MainWindow(QMainWindow):
 
     def _on_write_error(self, error_msg: str):
         """Chamado quando a escrita da nota falha."""
+        # Proteção contra race condition: ignora callbacks de workers antigos
+        worker = self.sender()
+        if worker is not self._writer_worker:
+            return
+
         elapsed = self._session_elapsed()
         self.status_label.setText(error_msg)
         self.process_button.setEnabled(True)
+        self._writer_worker.finished.disconnect(self._on_write_finished)
+        self._writer_worker.error.disconnect(self._on_write_error)
         self._writer_worker = None
         log_session(
-            source=self._loaded_file or "",
+            source=self._pipeline_source or "",
             prompt_label=self._current_prompt_label or "",
             status="✗",
             duration_seconds=elapsed,
@@ -373,7 +434,29 @@ class MainWindow(QMainWindow):
     def _load_prompts(self):
         """Recarrega prompts do config e atualiza o QComboBox."""
         config = cfg.load()
-        self._prompts = config.get("prompts", DEFAULT_CONFIG["prompts"])
+        prompts_raw = config.get("prompts", DEFAULT_CONFIG["prompts"])
+
+        # Valida e filtra prompts malformados
+        valid_prompts = []
+        for p in prompts_raw:
+            # Verifica se prompt tem campos obrigatórios
+            if not isinstance(p, dict):
+                logger.warning(f"Prompt inválido (não é dict): {p}")
+                continue
+            if "label" not in p or "text" not in p:
+                logger.warning(f"Prompt sem campos obrigatórios ('label' ou 'text'): {p}")
+                continue
+            if not p["label"].strip() or not p["text"].strip():
+                logger.warning(f"Prompt com campos vazios: {p}")
+                continue
+            valid_prompts.append(p)
+
+        # Se nenhum prompt válido, usa padrões
+        if not valid_prompts:
+            logger.error("Nenhum prompt válido encontrado, usando prompts padrão")
+            valid_prompts = DEFAULT_CONFIG["prompts"]
+
+        self._prompts = valid_prompts
         current = self.prompt_selector.currentText()
         self.prompt_selector.clear()
         for p in self._prompts:
@@ -391,10 +474,18 @@ class MainWindow(QMainWindow):
             self._load_prompts()
 
     def closeEvent(self, event):
+        # Shutdown assíncrono: não bloqueia a UI thread
         for worker in (self._extraction_worker, self._processor_worker, self._writer_worker):
             if worker is not None and worker.isRunning():
+                # Desconecta signals para evitar callbacks durante shutdown
+                try:
+                    worker.finished.disconnect()
+                    worker.error.disconnect()
+                except (TypeError, RuntimeError):
+                    pass  # signals já desconectados ou worker finalizado
+                # Solicita término gracioso sem bloquear
                 worker.quit()
-                worker.wait(3000)
+        # Qt automaticamente aguarda threads no destrutor — não bloqueamos aqui
         from kairos.integrations import launcher
         launcher.stop()
         super().closeEvent(event)

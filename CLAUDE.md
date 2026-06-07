@@ -1,116 +1,382 @@
 # CLAUDE.md — Kairos
 
-App de estudo local para perfil TDAH+TEA. Aceita PDF ou URL YouTube → processa via NotebookLM → salva nota no Obsidian + log em markdown.
+App de estudo local para perfil TDAH+TEA.
+
+Aceita PDF ou URL YouTube → processa via NotebookLM → salva nota no Obsidian + log em markdown.
 
 ---
 
 ## Ambiente
 
-```
-OS: CachyOS / Arch, Hyprland | Python: 3.14.5 | Shell: Zsh
-Venv: .venv --system-site-packages | Raiz: ~/Documentos/Kairos
+```text
+OS: CachyOS / Arch, Hyprland
+Python: 3.14.5
+Shell: Zsh
+
+Venv: .venv --system-site-packages
+Raiz: ~/Documentos/Kairos
 ```
 
 ```bash
-./run.sh        # roda o app
-./build.sh      # gera dist/kairos (binário standalone)
+./run.sh
+./build.sh
 ```
 
 ---
 
-## REGRAS — nunca violar
+## Objetivo Principal
 
-1. **PySide6 nunca via pip** — vem do pacman (`extra/pyside6`). pip não tem wheel para Python 3.14. Venv sempre com `--system-site-packages`.
-2. **Nuitka travado em 4.1.2** — histórico de regressões com PySide6. Não atualizar.
-3. **UI nunca trava** — todo processamento pesado em `QThread`/`QRunnable`. Nunca bloquear thread principal.
-4. **Separação estrita** — zero lógica de negócio em `ui/`, zero UI em `pipeline/`.
-5. **Sem `os.path`** — usar `pathlib.Path`. Sem `pathlib2`. Sem caminhos hardcoded.
-6. **Erros em PT-BR** — nunca expor stacktrace cru ao usuário.
-7. **Estilo só em `styles.qss`** — nunca `setStyleSheet()` inline em widget individual.
+Manter o Kairos simples, responsivo e confiável.
+
+Prioridades:
+
+1. Não quebrar funcionalidades existentes.
+2. Não travar a UI.
+3. Resolver a tarefa com o menor número de alterações possível.
+4. Consumir o mínimo de contexto necessário.
+5. Preservar a arquitetura definida neste documento.
+
+---
+
+## REGRAS — Nunca Violar
+
+### Dependências
+
+* PySide6 nunca via pip.
+* PySide6 vem do pacman (`extra/pyside6`).
+* Venv sempre com `--system-site-packages`.
+
+### Build
+
+* Nuitka travado em 4.1.2.
+* Não atualizar Nuitka sem solicitação explícita.
+
+### Arquitetura
+
+* Zero lógica de negócio em `ui/`.
+* Zero UI em `pipeline/`.
+* Separação estrita entre camadas.
+
+### Caminhos
+
+* Usar apenas `pathlib.Path`.
+* Nunca usar `os.path`.
+* Nunca usar caminhos hardcoded.
+
+### UX
+
+* UI nunca pode travar.
+* Operações pesadas sempre em `QThread` ou `QRunnable`.
+* Feedback visual obrigatório para ações > 1 segundo.
+* Status sempre atualizado em tempo real.
+* Uma ação visível por vez.
+
+### Erros
+
+* Mensagens em PT-BR.
+* Nunca exibir stacktrace cru ao usuário.
+
+### Estilo
+
+* Toda estilização em `styles.qss`.
+* Nunca usar `setStyleSheet()` inline.
+
+---
+
+## Context Economy
+
+Objetivo: minimizar consumo de tokens.
+
+Antes de qualquer alteração:
+
+1. Identificar arquivos relevantes.
+2. Ler apenas os arquivos necessários.
+3. Nunca escanear o repositório inteiro sem necessidade explícita.
+4. Nunca abrir arquivos não relacionados.
+5. Parar a investigação assim que houver informação suficiente.
+6. Reutilizar contexto já obtido na sessão.
+7. Preferir leitura direcionada a exploração ampla.
+
+Prioridade de contexto:
+
+1. CLAUDE.md
+2. Contexto da sessão
+3. Arquivos específicos
+4. Exploração adicional
+
+---
+
+## Modification Policy
+
+Alterações devem ser cirúrgicas.
+
+* Modificar o menor número possível de arquivos.
+* Não realizar refatorações não solicitadas.
+* Não reorganizar diretórios.
+* Não mover arquivos.
+* Não renomear arquivos.
+* Não alterar APIs sem necessidade.
+* Não introduzir dependências sem aprovação explícita.
+* Não alterar comportamento existente sem justificativa.
+
+Se um problema puder ser resolvido em um arquivo, preferir um arquivo.
+
+---
+
+## Simplicity First
+
+Sempre preferir:
+
+* Solução simples.
+* Menor implementação possível.
+* Menor superfície de mudança.
+
+Evitar:
+
+* Overengineering.
+* Abstrações prematuras.
+* Flexibilidade futura não solicitada.
+* Código especulativo.
+
+---
+
+## Clarification Policy
+
+Se houver ambiguidade:
+
+* Não assumir.
+* Perguntar.
+* Não alterar arquitetura sem confirmação.
+* Não remover funcionalidades sem confirmação.
 
 ---
 
 ## Stack
 
-| Componente | Tecnologia |
-|---|---|
-| GUI | PySide6 via pacman |
-| Build | Nuitka 4.1.2 |
-| NotebookLM | notebooklm-py 0.7.0 (API não-oficial) |
-| PDF | pymupdf4llm 0.0.17 |
-| YouTube | youtube-transcript-api 1.2.4 + yt-dlp 2026.3.17 |
-| Config | `~/.config/kairos/config.json` |
-| Notas | Obsidian vault (.md direto, sem plugin) |
-| Música | Simpmusic via subprocess |
+| Componente | Tecnologia                      |
+| ---------- | ------------------------------- |
+| GUI        | PySide6                         |
+| Build      | Nuitka 4.1.2                    |
+| NotebookLM | notebooklm-py 0.7.0             |
+| PDF        | pymupdf4llm 0.0.17              |
+| YouTube    | youtube-transcript-api + yt-dlp |
+| Config     | config.json                     |
+| Notas      | Obsidian                        |
+| Música     | Simpmusic                       |
 
 ---
 
 ## Arquitetura
 
-```
+```text
 kairos/
-├── main.py                  # QApplication + MainWindow only
-├── ui/                      # Zero lógica de negócio
-│   ├── main_window.py
-│   ├── sidebar.py
-│   ├── drop_zone.py
-│   ├── prompt_selector.py
-│   ├── progress_bar.py
-│   └── styles.qss           # toda estilização aqui
-├── pipeline/                # Zero UI
-│   ├── ingestor.py          # identifica tipo, roteia
-│   ├── pdf_extractor.py     # pymupdf4llm → markdown
-│   ├── youtube_extractor.py # transcript-api → fallback yt-dlp
-│   ├── processor.py         # notebooklm-py → fallback local
-│   ├── writer.py            # salva .md no vault
-│   └── logger.py            # append study-log.md
+├── main.py
+├── ui/
+├── pipeline/
 ├── integrations/
-│   ├── notebooklm_client.py
-│   └── launcher.py          # Simpmusic subprocess
 └── config/
-    ├── config.py            # lê/escreve config.json
-    └── defaults.py          # DEFAULT_CONFIG + prompts padrão
+```
+
+---
+
+## Quick Responsibility Map
+
+main.py
+
+* Bootstrap
+* QApplication
+* MainWindow
+
+ui/
+
+* Interface gráfica
+* Nenhuma lógica de negócio
+
+pipeline/ingestor.py
+
+* Identificação e roteamento
+
+pipeline/pdf_extractor.py
+
+* PDF → Markdown
+
+pipeline/youtube_extractor.py
+
+* Transcrições
+
+pipeline/processor.py
+
+* NotebookLM
+* Fallback local
+
+pipeline/writer.py
+
+* Escrita Obsidian
+
+pipeline/logger.py
+
+* Study Log
+
+integrations/notebooklm_client.py
+
+* Comunicação NotebookLM
+
+integrations/launcher.py
+
+* Simpmusic
+
+config/config.py
+
+* Persistência
+
+---
+
+## Entry Points
+
+Mudança de UI:
+
+```text
+ui/
+```
+
+Mudança NotebookLM:
+
+```text
+integrations/notebooklm_client.py
+pipeline/processor.py
+```
+
+Mudança Obsidian:
+
+```text
+pipeline/writer.py
+```
+
+Fluxo principal:
+
+```text
+main.py
+ → MainWindow
+ → Pipeline
+ → Integrations
 ```
 
 ---
 
 ## Pipeline
 
-```
-PDF/URL → ingestor → pdf_extractor | youtube_extractor
-        → processor (notebooklm → fallback: salva bruto + #pendente-notebooklm)
-        → writer (nota .md no vault)
-        → logger (append study-log.md)
-```
-
----
-
-## Tema visual
-
-Minimalista escuro, monoespaçado. Sem gradientes, sem sombras excessivas.
-
-```
-#0f0f0f  fundo principal   | #0a0a0a  sidebar
-#1a1a1a  superfícies        | #1e1e1e / #333333  bordas
-#e0e0e0  texto              | #888888  secundário | #555555  desabilitado
-Font: "JetBrains Mono", 13px
+```text
+PDF/URL
+ → ingestor
+ → extractor
+ → processor
+ → writer
+ → logger
 ```
 
 ---
 
-## Riscos conhecidos
+## Investigation Strategy
 
-- **notebooklm-py quebrou**: `pip install --upgrade notebooklm-py`. Fallback já implementado em `processor.py`.
-- **Sessão expirou**: `notebooklm login` no terminal.
-- **YouTube falhou**: fallback automático para yt-dlp já em `youtube_extractor.py`.
-- **Build Nuitka falhou**: confirmar `python -m nuitka --version` == 4.1.2.
+Ao corrigir bugs:
+
+1. Formular hipótese.
+2. Identificar arquivos envolvidos.
+3. Ler apenas esses arquivos.
+4. Validar hipótese.
+5. Corrigir.
+6. Encerrar investigação.
+
+Evitar leituras em cascata.
 
 ---
 
-## UX (TDAH+TEA)
+## Validation
 
-- Feedback visual obrigatório em qualquer ação > 1s
-- App abre pronto para uso, sem setup inicial obrigatório
-- Uma ação visível por vez
-- Status label atualizado em tempo real
-- Erros sempre em PT-BR, nunca stacktrace
+Antes de concluir:
+
+* Verificar imports.
+* Verificar regras deste documento.
+* Confirmar que a UI permanece responsiva.
+* Confirmar que nenhuma arquitetura foi violada.
+* Confirmar mensagens em PT-BR.
+
+---
+
+## Performance Policy
+
+Evitar:
+
+* Processamento duplicado.
+* Releituras desnecessárias.
+* Loops redundantes.
+* Operações síncronas pesadas.
+* Bloqueios da thread principal.
+
+Preferir:
+
+* QThread
+* QRunnable
+* Lazy loading
+* Cache local
+
+---
+
+## Never Do
+
+* Nunca commitar API Keys.
+* Nunca commitar credenciais.
+* Nunca commitar arquivos pessoais.
+* Nunca bloquear a UI.
+* Nunca misturar UI com lógica de negócio.
+* Nunca usar os.path.
+* Nunca usar setStyleSheet inline.
+* Nunca atualizar Nuitka sem solicitação.
+
+---
+
+## Errors Corrected
+
+Erros conhecidos e já corrigidos:
+
+* PySide6 nunca via pip.
+* Não usar os.path.
+* Não usar setStyleSheet inline.
+* Nuitka permanece em 4.1.2.
+* UI nunca pode bloquear.
+
+Adicionar novas ocorrências conforme forem identificadas.
+
+---
+
+## Riscos Conhecidos
+
+NotebookLM:
+
+* Executar atualização do pacote se necessário.
+
+Sessão NotebookLM:
+
+* Reautenticar via terminal.
+
+YouTube:
+
+* Fallback automático para yt-dlp.
+
+Build:
+
+* Confirmar Nuitka 4.1.2.
+
+---
+
+## Definition of Done
+
+Uma tarefa só está concluída quando:
+
+* Código consistente.
+* Arquitetura preservada.
+* UI responsiva.
+* Nenhuma regra deste documento foi violada.
+* Não há regressão evidente.
+* Mensagens continuam em PT-BR.
+* Alteração atende exatamente ao solicitado.

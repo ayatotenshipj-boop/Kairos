@@ -69,7 +69,9 @@ def _extract_via_yt_dlp(url: str) -> str:
             url,
         ]
         logger.info(f"Executando yt-dlp para {url}")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        # Timeout reduzido: yt-dlp baixa apenas legendas (texto pequeno)
+        # 30s é suficiente mesmo para conexões lentas
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if result.returncode != 0:
             logger.error(f"yt-dlp falhou (código {result.returncode}): {result.stderr[:200]}")
             raise RuntimeError("yt-dlp falhou ao baixar as legendas do vídeo")

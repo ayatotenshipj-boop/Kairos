@@ -1,5 +1,6 @@
 import logging
 import subprocess
+import threading
 from pathlib import Path
 
 from kairos.config import config as cfg
@@ -7,6 +8,7 @@ from kairos.config import config as cfg
 logger = logging.getLogger(__name__)
 
 _process: subprocess.Popen | None = None
+_lock = threading.Lock()
 
 
 def start() -> None:
@@ -26,31 +28,36 @@ def start() -> None:
         logger.error(f"Simpmusic não encontrado no caminho configurado: {path}")
         return
 
-    try:
-        _process = subprocess.Popen([str(path)])
-        logger.info(f"Simpmusic iniciado (PID {_process.pid})")
-    except Exception as e:
-        logger.error(f"Erro ao iniciar Simpmusic: {e}")
+    with _lock:
+        try:
+            _process = subprocess.Popen([str(path)])
+            logger.info(f"Simpmusic iniciado (PID {_process.pid})")
+        except Exception as e:
+            logger.error(f"Erro ao iniciar Simpmusic: {e}")
 
 
 def stop() -> None:
     global _process
-    if _process is None:
-        return
-    if _process.poll() is not None:
-        _process = None
-        return
-    try:
-        _process.terminate()
+    with _lock:
+        if _process is None:
+            return
+        if _process.poll() is not None:
+            _process = None
+            return
         try:
-            _process.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            _process.kill()
-    except Exception as e:
-        logger.error(f"Erro ao encerrar Simpmusic: {e}")
-    finally:
-        _process = None
+            # Solicita término gracioso sem bloquear
+            _process.terminate()
+            # Tenta kill imediato se ainda estiver rodando
+            # poll() retorna None se processo ainda ativo
+            if _process.poll() is None:
+                _process.kill()
+            # Sistema operacional limpa processo zombie
+        except Exception as e:
+            logger.error(f"Erro ao encerrar Simpmusic: {e}")
+        finally:
+            _process = None
 
 
 def is_running() -> bool:
-    return _process is not None and _process.poll() is None
+    with _lock:
+        return _process is not None and _process.poll() is None

@@ -33,5 +33,12 @@ def process(text: str, prompt_text: str) -> tuple[str, str]:
         return (text + _FALLBACK_FOOTER, "local")
 
     except Exception as e:
-        logger.warning(f"Erro inesperado, usando fallback local: {e}")
+        # ATENÇÃO: Este bloco não deveria ser atingido em operação normal.
+        # Se atingido, indica BUG no código (não falha do NotebookLM).
+        # Stack trace completo é logado para debug.
+        logger.exception(
+            "ERRO CRÍTICO: Exceção inesperada durante processamento. "
+            "Isto indica bug no código, não falha do NotebookLM. "
+            "Usando fallback local para evitar perda de dados."
+        )
         return (text + _FALLBACK_FOOTER, "local")

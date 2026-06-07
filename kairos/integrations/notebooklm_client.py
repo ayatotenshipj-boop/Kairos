@@ -26,6 +26,9 @@ def process(text: str, prompt: str) -> str:
     """
     try:
         return asyncio.run(_process_async(text, prompt))
+    except NotebookLMError:
+        # Re-lança erros já tratados (validação de storage_path)
+        raise
     except AuthError as e:
         logger.error(f"Autenticação NotebookLM falhou: {e}")
         raise NotebookLMError(
@@ -45,10 +48,30 @@ def process(text: str, prompt: str) -> str:
 async def _process_async(text: str, prompt: str) -> str:
     """Implementação assíncrona do processamento."""
     config = cfg.load()
-    storage_path = str(Path(config.get("notebooklm_home", "~/.notebooklm")).expanduser())
+    notebooklm_home = Path(config.get("notebooklm_home", "~/.notebooklm")).expanduser()
+
+    # NotebookLMClient.from_storage espera caminho para storage_state.json, não diretório
+    if notebooklm_home.is_dir():
+        # Usa estrutura padrão: ~/.notebooklm/profiles/default/storage_state.json
+        storage_path = notebooklm_home / "profiles" / "default" / "storage_state.json"
+    else:
+        # Se for arquivo, usa diretamente
+        storage_path = notebooklm_home
+
+    # Valida que o arquivo existe
+    if not storage_path.exists():
+        raise NotebookLMError(
+            f"Arquivo de autenticação não encontrado: {storage_path}. "
+            "Execute 'notebooklm login' no terminal para autenticar."
+        )
+
+    if storage_path.is_dir():
+        raise NotebookLMError(
+            f"Caminho de autenticação é um diretório, esperava arquivo: {storage_path}"
+        )
 
     logger.info("Conectando ao NotebookLM...")
-    async with NotebookLMClient.from_storage(path=storage_path) as client:
+    async with NotebookLMClient.from_storage(path=str(storage_path)) as client:
         logger.info("Criando notebook temporário...")
         notebook = await client.notebooks.create(title="Kairos — processamento temporário")
 
