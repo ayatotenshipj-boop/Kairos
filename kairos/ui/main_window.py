@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from hypothesis import event
 
 from kairos.config import config as cfg
 from kairos.config.defaults import DEFAULT_CONFIG
@@ -258,7 +259,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Erro: nenhum arquivo carregado")
             return
 
-        # Previne race condition: não inicia novo worker se já houver um rodando
+  # Previne race condition: não inicia novo worker se já houver um rodando
         if self._extraction_worker is not None and self._extraction_worker.isRunning():
             return
         if self._processor_worker is not None and self._processor_worker.isRunning():
@@ -266,8 +267,17 @@ class MainWindow(QMainWindow):
         if self._writer_worker is not None and self._writer_worker.isRunning():
             return
 
-        # Captura source imutável no início do pipeline
+# Captura source e prompt imutáveis no início do pipeline
         self._pipeline_source = self._loaded_file
+        selected_label = self.prompt_selector.currentText()
+        prompt_obj = next(
+            (p for p in self._prompts if p["label"] == selected_label),
+            None,
+        )
+        if not prompt_obj:
+            self.status_label.setText("Erro: prompt não encontrado")
+            return
+        self._current_prompt_label = selected_label
 
         self.process_button.setEnabled(False)
         is_youtube = self._pipeline_source.startswith("http")
@@ -293,10 +303,9 @@ class MainWindow(QMainWindow):
         self._extraction_worker.error.disconnect(self._on_extraction_error)
         self._extraction_worker = None
 
-        # Pega o prompt selecionado
-        selected_label = self.prompt_selector.currentText()
+        # Usa o prompt capturado no início do pipeline
         prompt_obj = next(
-            (p for p in self._prompts if p["label"] == selected_label),
+            (p for p in self._prompts if p["label"] == self._current_prompt_label),
             None,
         )
         if not prompt_obj:
@@ -304,7 +313,6 @@ class MainWindow(QMainWindow):
             self.process_button.setEnabled(True)
             return
 
-        self._current_prompt_label = selected_label
         prompt_text = prompt_obj["text"]
 
         # Dispara o processamento
@@ -475,18 +483,18 @@ class MainWindow(QMainWindow):
             self._load_prompts()
 
     def closeEvent(self, event):
-        # Shutdown assíncrono: não bloqueia a UI thread
         for worker in (self._extraction_worker, self._processor_worker, self._writer_worker):
             if worker is not None and worker.isRunning():
-                # Desconecta signals para evitar callbacks durante shutdown
                 try:
                     worker.finished.disconnect()
                     worker.error.disconnect()
                 except (TypeError, RuntimeError):
-                    pass  # signals já desconectados ou worker finalizado
-                # Solicita término gracioso sem bloquear
+                    pass
                 worker.quit()
-        # Qt automaticamente aguarda threads no destrutor — não bloqueamos aqui
+                worker.wait(3000)
+                if worker.isRunning():
+                    worker.terminate()
+                    worker.wait(1000)
         from kairos.integrations import launcher
         launcher.stop()
         super().closeEvent(event)

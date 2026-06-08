@@ -18,6 +18,9 @@ def _extract_video_id(url: str) -> str | None:
     m = re.search(r'youtu\.be/([a-zA-Z0-9_-]{11})', url)
     if m:
         return m.group(1)
+    m = re.search(r'youtube\.com/shorts/([a-zA-Z0-9_-]{11})', url)
+    if m:
+        return m.group(1)
     return None
 
 

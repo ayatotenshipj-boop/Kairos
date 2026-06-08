@@ -13,10 +13,14 @@ fi
 # Activate virtual environment
 source .venv/bin/activate
 
-# Install dependencies
+# Install dependencies (silencioso)
 echo "Installing dependencies..."
-pip install -r requirements.txt
+pip install -r requirements.txt -q --disable-pip-version-check > /dev/null 2>&1
 
-# Run the application
+# Run the application in background
 echo "Starting Kairos..."
-python -m kairos.main
+
+nohup python -m kairos.main > /dev/null 2>&1 < /dev/null &
+
+# Save PID
+echo $! > kairos.pid

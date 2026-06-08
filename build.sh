@@ -15,6 +15,7 @@ if [ ! -d ".venv" ]; then
 fi
 
 source .venv/bin/activate
+export PATH="$HOME/.local/bin:$PATH"
 
 # Instala dependências de build se necessário
 if ! python -m nuitka --version &>/dev/null; then
@@ -32,7 +33,7 @@ python -m nuitka \
     --onefile \
     --enable-plugin=pyside6 \
     --include-qt-plugins=sensible,styles,platforms \
-    --include-data-files=kairos/ui/styles.qss:kairos/ui/styles.qss \
+    --include-data-files=kairos/ui/styles.qss=kairos/ui/styles.qss \
     --follow-imports \
     --output-filename=kairos \
     --output-dir=dist \
