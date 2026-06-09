@@ -1,0 +1,15 @@
+# Timer do keepalive da sessão do NotebookLM (Kairos).
+#
+# Cadência de 20 min: a doc da notebooklm-py recomenda 15-20 min. Intervalo
+# muito maior pode estalar o __Secure-1PSIDTS (validade server-side do SIDTS).
+
+[Unit]
+Description=Kairos — timer de keepalive do NotebookLM
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

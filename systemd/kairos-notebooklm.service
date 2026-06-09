@@ -1,0 +1,22 @@
+# Keepalive da sessão do NotebookLM (Kairos).
+#
+# Renova os cookies de sessão exercitando o caminho de auth uma vez. Pensado
+# para ser disparado pelo timer companheiro (kairos-notebooklm.timer), não
+# manualmente.
+#
+# IMPORTANTE: systemd não herda o PATH do venv — o ExecStart usa caminho
+# absoluto. Ajuste se o repositório não estiver em ~/Documentos/Kairos.
+#
+# Instalação:
+#   cp systemd/kairos-notebooklm.* ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now kairos-notebooklm.timer
+
+[Unit]
+Description=Kairos — keepalive da sessão do NotebookLM
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/Documentos/Kairos/.venv/bin/notebooklm auth refresh --quiet

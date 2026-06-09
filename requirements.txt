@@ -1,5 +1,7 @@
 pymupdf4llm==0.0.17
 youtube-transcript-api==1.2.4
 yt-dlp==2026.3.17
+faster-whisper
 notebooklm-py==0.7.0
+google-genai==2.7.0
 # PySide6 instalado via pacman: sudo pacman -S pyside6

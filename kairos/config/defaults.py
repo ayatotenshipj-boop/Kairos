@@ -4,7 +4,14 @@ DEFAULT_CONFIG = {
     "log_filename": "study-log.md",
     "simpmusic_path": "",
     "simpmusic_autostart": True,
+    "reduce_motion": False,
     "notebooklm_home": "~/.notebooklm",
+    "whisper_model": "small",
+    "processor_backend": "notebooklm",
+    "gemini_api_key": "",
+    "gemini_model": "gemini-flash-latest",
+    "ollama_host": "http://localhost:11434",
+    "ollama_model": "llama3.1:8b",
     "prompts": [
         {
             "id": "beginner",
