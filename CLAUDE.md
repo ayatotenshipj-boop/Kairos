@@ -1,168 +1,74 @@
 # CLAUDE.md — Kairos
 
-App de estudo local para perfil TDAH+TEA.
-
-Aceita PDF ou URL YouTube → processa via NotebookLM → salva nota no Obsidian + log em markdown.
+App de estudo local (perfil TDAH+TEA). Fluxo: PDF ou URL YouTube → NotebookLM → nota no Obsidian + log markdown.
 
 ---
 
 ## Ambiente
 
 ```text
-OS: CachyOS / Arch, Hyprland
-Python: 3.14.5
-Shell: Zsh
-
-Venv: .venv --system-site-packages
-Raiz: ~/Documentos/Kairos
+OS:     CachyOS / Arch, Hyprland
+Python: 3.14.5  (venv: .venv --system-site-packages)
+Shell:  Zsh
+Raiz:   ~/Documentos/Kairos
 ```
 
 ```bash
-./run.sh
-./build.sh
+./run.sh      # executar
+./build.sh    # build Nuitka
 ```
 
 ---
 
-## Objetivo Principal
+## Verificação (rodar antes de concluir qualquer tarefa)
 
-Manter o Kairos simples, responsivo e confiável.
+> Ajustar aos comandos que realmente existem no repo. Substituir/remover os que não se aplicam.
 
-Prioridades:
+```bash
+ruff check kairos/        # lint  (se ruff estiver configurado)
+python -m pytest -q       # testes (se houver suíte)
+./build.sh                # build precisa sair com código 0
+```
 
-1. Não quebrar funcionalidades existentes.
+Regra: mostrar a saída do comando, não afirmar "feito". Uma tarefa não está concluída até a verificação passar.
+
+---
+
+## Prioridades (em ordem)
+
+1. Não quebrar o que já funciona.
 2. Não travar a UI.
-3. Resolver a tarefa com o menor número de alterações possível.
-4. Consumir o mínimo de contexto necessário.
-5. Preservar a arquitetura definida neste documento.
+3. Menor número de alterações possível.
+4. Mínimo de contexto consumido.
+5. Preservar a arquitetura abaixo.
 
 ---
 
-## REGRAS — Nunca Violar
+## Regras invioláveis
 
-### Dependências
+**Aplicadas por hook (determinístico):**
 
-* PySide6 nunca via pip.
-* PySide6 vem do pacman (`extra/pyside6`).
-* Venv sempre com `--system-site-packages`.
+* Nunca commitar API keys, credenciais ou arquivos pessoais.
+* Nunca usar `os.path` — somente `pathlib.Path`.
+* Nunca usar `setStyleSheet()` inline — estilização só em `styles.qss`.
 
-### Build
+**Aplicadas por convenção (este documento):**
 
-* Nuitka travado em 4.1.2.
-* Não atualizar Nuitka sem solicitação explícita.
-
-### Arquitetura
-
-* Zero lógica de negócio em `ui/`.
-* Zero UI em `pipeline/`.
-* Separação estrita entre camadas.
-
-### Caminhos
-
-* Usar apenas `pathlib.Path`.
-* Nunca usar `os.path`.
-* Nunca usar caminhos hardcoded.
-
-### UX
-
-* UI nunca pode travar.
-* Operações pesadas sempre em `QThread` ou `QRunnable`.
-* Feedback visual obrigatório para ações > 1 segundo.
-* Status sempre atualizado em tempo real.
-* Uma ação visível por vez.
-
-### Erros
-
-* Mensagens em PT-BR.
-* Nunca exibir stacktrace cru ao usuário.
-
-### Estilo
-
-* Toda estilização em `styles.qss`.
-* Nunca usar `setStyleSheet()` inline.
+* PySide6 vem do pacman (`extra/pyside6`), nunca via pip. Venv sempre `--system-site-packages`.
+* Nuitka travado em 4.1.2 — não atualizar sem pedido explícito.
+* Separação estrita: zero lógica de negócio em `ui/`, zero UI em `pipeline/`.
+* Nunca caminhos hardcoded.
+* UI nunca bloqueia: operações > 1s em `QThread`/`QRunnable`, com feedback visual e status em tempo real.
+* Erros ao usuário em PT-BR, sem stacktrace cru.
 
 ---
 
-## Context Economy
+## Code style (Python)
 
-Objetivo: minimizar consumo de tokens.
-
-Antes de qualquer alteração:
-
-1. Identificar arquivos relevantes.
-2. Ler apenas os arquivos necessários.
-3. Nunca escanear o repositório inteiro sem necessidade explícita.
-4. Nunca abrir arquivos não relacionados.
-5. Parar a investigação assim que houver informação suficiente.
-6. Reutilizar contexto já obtido na sessão.
-7. Preferir leitura direcionada a exploração ampla.
-
-Prioridade de contexto:
-
-1. CLAUDE.md
-2. Contexto da sessão
-3. Arquivos específicos
-4. Exploração adicional
-
----
-
-## Modification Policy
-
-Alterações devem ser cirúrgicas.
-
-* Modificar o menor número possível de arquivos.
-* Não realizar refatorações não solicitadas.
-* Não reorganizar diretórios.
-* Não mover arquivos.
-* Não renomear arquivos.
-* Não alterar APIs sem necessidade.
-* Não introduzir dependências sem aprovação explícita.
-* Não alterar comportamento existente sem justificativa.
-
-Se um problema puder ser resolvido em um arquivo, preferir um arquivo.
-
----
-
-## Simplicity First
-
-Sempre preferir:
-
-* Solução simples.
-* Menor implementação possível.
-* Menor superfície de mudança.
-
-Evitar:
-
-* Overengineering.
-* Abstrações prematuras.
-* Flexibilidade futura não solicitada.
-* Código especulativo.
-
----
-
-## Clarification Policy
-
-Se houver ambiguidade:
-
-* Não assumir.
-* Perguntar.
-* Não alterar arquitetura sem confirmação.
-* Não remover funcionalidades sem confirmação.
-
----
-
-## Stack
-
-| Componente | Tecnologia                      |
-| ---------- | ------------------------------- |
-| GUI        | PySide6                         |
-| Build      | Nuitka 4.1.2                    |
-| NotebookLM | notebooklm-py 0.7.0             |
-| PDF        | pymupdf4llm 0.0.17              |
-| YouTube    | youtube-transcript-api + yt-dlp |
-| Config     | config.json                     |
-| Notas      | Obsidian                        |
-| Música     | Simpmusic                       |
+* Imports: stdlib → terceiros → local, ordenados.
+* `pathlib.Path` para todo I/O de caminho.
+* Type hints em assinaturas públicas.
+* Sem código especulativo ou abstração prematura.
 
 ---
 
@@ -170,213 +76,115 @@ Se houver ambiguidade:
 
 ```text
 kairos/
-├── main.py
-├── ui/
-├── pipeline/
-├── integrations/
-└── config/
+├── main.py          # bootstrap, QApplication, MainWindow
+├── ui/              # interface — sem lógica de negócio
+├── pipeline/        # processamento — sem UI
+├── integrations/    # serviços externos
+└── config/          # persistência
 ```
 
----
+| Arquivo | Responsabilidade |
+| --- | --- |
+| `pipeline/ingestor.py` | Identificação e roteamento |
+| `pipeline/pdf_extractor.py` | PDF → Markdown |
+| `pipeline/youtube_extractor.py` | Transcrições |
+| `pipeline/processor.py` | NotebookLM + fallback local |
+| `pipeline/writer.py` | Escrita Obsidian |
+| `pipeline/logger.py` | Study Log |
+| `integrations/notebooklm_client.py` | Comunicação NotebookLM |
+| `integrations/launcher.py` | Simpmusic |
+| `config/config.py` | Persistência |
 
-## Quick Responsibility Map
+**Fluxo:** `PDF/URL → ingestor → extractor → processor → writer → logger`
 
-main.py
-
-* Bootstrap
-* QApplication
-* MainWindow
-
-ui/
-
-* Interface gráfica
-* Nenhuma lógica de negócio
-
-pipeline/ingestor.py
-
-* Identificação e roteamento
-
-pipeline/pdf_extractor.py
-
-* PDF → Markdown
-
-pipeline/youtube_extractor.py
-
-* Transcrições
-
-pipeline/processor.py
-
-* NotebookLM
-* Fallback local
-
-pipeline/writer.py
-
-* Escrita Obsidian
-
-pipeline/logger.py
-
-* Study Log
-
-integrations/notebooklm_client.py
-
-* Comunicação NotebookLM
-
-integrations/launcher.py
-
-* Simpmusic
-
-config/config.py
-
-* Persistência
+**Onde mexer:** UI → `ui/` · NotebookLM → `integrations/notebooklm_client.py` + `pipeline/processor.py` · Obsidian → `pipeline/writer.py`
 
 ---
 
-## Entry Points
+## Stack
 
-Mudança de UI:
+| Componente | Tecnologia |
+| --- | --- |
+| GUI | PySide6 (pacman) |
+| Build | Nuitka 4.1.2 |
+| NotebookLM | notebooklm-py 0.7.0 |
+| PDF | pymupdf4llm 0.0.17 |
+| YouTube | youtube-transcript-api + yt-dlp |
+| Config | config.json |
 
-```text
-ui/
+---
+
+## Build (Nuitka)
+
+`--follow-imports` não captura imports lazy/dinâmicos nem data files de C-extensions. Incluir explicitamente:
+
+```bash
+--include-package=yt_dlp \
+--include-package=pymupdf \
+--include-package=pymupdf4llm \
+--include-package=notebooklm_py \
 ```
 
-Mudança NotebookLM:
+> O pacote real do PyMuPDF é `pymupdf` (não `fitz` — `fitz` é alias legado e há um pacote PyPI homônimo sem relação). Se `.so` não for empacotado, avaliar `--include-package-data`.
 
-```text
-integrations/notebooklm_client.py
-pipeline/processor.py
+---
+
+## Economia de contexto
+
+1. Identificar arquivos relevantes; ler só o necessário.
+2. Nunca escanear o repo inteiro sem pedido explícito.
+3. Parar a investigação quando houver informação suficiente.
+4. Reutilizar contexto já obtido na sessão.
+
+Prioridade: CLAUDE.md → sessão → arquivos específicos → exploração.
+
+---
+
+## Política de modificação
+
+* Alterações cirúrgicas; menor número de arquivos.
+* Não refatorar, mover, renomear ou reorganizar sem pedido.
+* Não adicionar dependências sem aprovação.
+* Não alterar APIs ou comportamento existente sem justificativa.
+
+---
+
+## Ambiguidade
+
+Não assumir. Perguntar. Nunca alterar arquitetura ou remover funcionalidade sem confirmação.
+
+---
+
+## Riscos conhecidos
+
+* **NotebookLM sessão:** reautenticar via terminal se cair.
+* **YouTube:** fallback automático para yt-dlp.
+* **Build:** confirmar Nuitka 4.1.2 e os `--include-package` acima.
+
+---
+
+## SimpMusic (Hyprland)
+
+O `launcher.py` registra automaticamente as windowrules via `hyprctl` antes de
+abrir o player, então em geral nada é preciso. Para fixá-las de forma estática no
+`hyprland.conf`, use:
+
+```conf
+windowrulev2 = workspace special:kairos-music silent, class:^(com-maxrave-simpmusic-MainKt)$
+windowrulev2 = float, class:^(com-maxrave-simpmusic-MainKt)$
 ```
 
-Mudança Obsidian:
-
-```text
-pipeline/writer.py
-```
-
-Fluxo principal:
-
-```text
-main.py
- → MainWindow
- → Pipeline
- → Integrations
-```
-
----
-
-## Pipeline
-
-```text
-PDF/URL
- → ingestor
- → extractor
- → processor
- → writer
- → logger
-```
-
----
-
-## Investigation Strategy
-
-Ao corrigir bugs:
-
-1. Formular hipótese.
-2. Identificar arquivos envolvidos.
-3. Ler apenas esses arquivos.
-4. Validar hipótese.
-5. Corrigir.
-6. Encerrar investigação.
-
-Evitar leituras em cascata.
-
----
-
-## Validation
-
-Antes de concluir:
-
-* Verificar imports.
-* Verificar regras deste documento.
-* Confirmar que a UI permanece responsiva.
-* Confirmar que nenhuma arquitetura foi violada.
-* Confirmar mensagens em PT-BR.
-
----
-
-## Performance Policy
-
-Evitar:
-
-* Processamento duplicado.
-* Releituras desnecessárias.
-* Loops redundantes.
-* Operações síncronas pesadas.
-* Bloqueios da thread principal.
-
-Preferir:
-
-* QThread
-* QRunnable
-* Lazy loading
-* Cache local
-
----
-
-## Never Do
-
-* Nunca commitar API Keys.
-* Nunca commitar credenciais.
-* Nunca commitar arquivos pessoais.
-* Nunca bloquear a UI.
-* Nunca misturar UI com lógica de negócio.
-* Nunca usar os.path.
-* Nunca usar setStyleSheet inline.
-* Nunca atualizar Nuitka sem solicitação.
-
----
-
-## Errors Corrected
-
-Erros conhecidos e já corrigidos:
-
-* PySide6 nunca via pip.
-* Não usar os.path.
-* Não usar setStyleSheet inline.
-* Nuitka permanece em 4.1.2.
-* UI nunca pode bloquear.
-
-Adicionar novas ocorrências conforme forem identificadas.
-
----
-
-## Riscos Conhecidos
-
-NotebookLM:
-
-* Executar atualização do pacote se necessário.
-
-Sessão NotebookLM:
-
-* Reautenticar via terminal.
-
-YouTube:
-
-* Fallback automático para yt-dlp.
-
-Build:
-
-* Confirmar Nuitka 4.1.2.
+> A classe real da janela é `com-maxrave-simpmusic-MainKt` (StartupWMClass do
+> `.desktop`), **não** o `simpmusic` genérico. O workspace é o especial
+> `kairos-music`, silencioso — o player nasce em segundo plano, sem foco e sem
+> dividir a tela. Controle exclusivo pelo mini-player do Kairos.
 
 ---
 
 ## Definition of Done
 
-Uma tarefa só está concluída quando:
-
-* Código consistente.
-* Arquitetura preservada.
-* UI responsiva.
-* Nenhuma regra deste documento foi violada.
-* Não há regressão evidente.
-* Mensagens continuam em PT-BR.
-* Alteração atende exatamente ao solicitado.
+* Verificação (lint/teste/build) passou — com saída mostrada.
+* Arquitetura preservada, UI responsiva.
+* Mensagens ao usuário em PT-BR.
+* Nenhuma regra deste documento violada.
+* Alteração atende exatamente ao solicitado, sem regressão.

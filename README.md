@@ -2,539 +2,282 @@
 
 > *Do grego: o momento certo para agir.*
 
-Kairos é um ambiente de estudo local, pessoal e automatizado, construído para um perfil cognitivo específico — TDAH e TEA — onde teoria sem prática não fixa, informação demais de uma vez trava, e o cérebro precisa de estrutura externa para funcionar bem.
+Kairos é um ambiente de estudo local e pessoal, construído para um perfil cognitivo específico — TDAH e TEA — onde teoria sem prática não fixa, informação demais de uma vez trava, e o cérebro precisa de estrutura externa para funcionar bem.
 
-Não é um app genérico de produtividade. É um ecossistema desenhado como um conjunto de engrenagens que se encaixam no funcionamento real de quem vai usar.
+Conceitualmente, o Kairos é um **client intermediário** entre um backend de IA (o pesquisador) e o Obsidian (a memória):
+
+```
+Material (PDF / YouTube / Áudio)
+   → Kairos extrai o conteúdo
+   → injeta a instrução de estrutura no prompt escolhido
+   → backend de IA (NotebookLM, Gemini ou Ollama) gera tema + sub-temas
+   → Obsidian armazena como pasta + notas linkadas
+   → Kairos projeta o mapa de conhecimento
+```
+
+Cada ferramenta no seu papel: **a IA estrutura, o Obsidian guarda, o Kairos sintetiza e visualiza.**
 
 ---
 
 ## Por que isso existe
 
-O projeto nasceu de uma análise honesta de como o aprendizado funciona (ou não funciona) para perfis neurodivergentes. As dificuldades mapeadas foram:
+O projeto nasceu de uma análise honesta de como o aprendizado funciona (ou não) para perfis neurodivergentes:
 
-- **Teoria sem âncora não fixa** — conceitos abstratos sem contexto prático escapam antes de chegar à memória de longo prazo
-- **Sobrecarga cognitiva** — muita informação de uma vez trava o entendimento, especialmente conteúdo teórico denso
-- **Dificuldade de iniciar** — o cérebro com TDAH tem baixa *antecipação* de recompensa, não baixa sensibilidade a ela — a motivação não aparece sozinha antes da tarefa começar
-- **Aprendizado não-linear** — explorar, quebrar, testar e voltar preencher lacunas é o método natural, não um defeito
-- **Dependência de estado interno** — sem estrutura externa, a sessão de estudo depende de "estar com vontade", o que raramente acontece
+- **Teoria sem âncora não fixa** — conceitos abstratos sem contexto escapam antes da memória de longo prazo
+- **Sobrecarga cognitiva** — muita informação de uma vez trava o entendimento
+- **Dificuldade de iniciar** — a motivação não aparece sozinha antes da tarefa começar
+- **Dependência de estado interno** — sem estrutura externa, estudar depende de "estar com vontade"
 
-Cada componente do Kairos foi escolhido para atacar um desses pontos diretamente, com base em métodos com respaldo em evidências:
-
-| Dificuldade | Mecanismo | Evidência |
-|---|---|---|
-| Teoria sem âncora | Prática primeiro, teoria depois (inductive learning) | Estudos de retenção em memória de trabalho |
-| Sobrecarga cognitiva | Chunking — uma coisa por sessão, saída visível obrigatória | Neurociência da memória de trabalho |
-| Dificuldade de iniciar | Estrutura de missão com desfecho claro antes da sessão | PINCH framework (dopamine-based motivation) |
-| Esquecimento | Revisão espaçada via Anki integrado ao Obsidian | Spaced repetition — Ebbinghaus / FSRS algorithm |
-| Dependência de estado | Scaffolding externo — ambiente carrega parte da carga cognitiva | External scaffolding para TDAH |
-| Aprendizado não-linear | Mapa de território — registra o que foi explorado, não o que "deveria" ter sido | Autodidactic learning research |
+O Kairos ataca isso com scaffolding externo: você solta um material, escolhe *como* quer aprender, e o sistema cuida do resto — extração, síntese estruturada, arquivamento conectado e registro da sessão. Uma sessão sempre termina com saída visível: notas no vault e uma linha no study log.
 
 ---
 
 ## O que o Kairos faz
 
-Kairos é um ambiente de estudo que você abre quando vai estudar. Ele:
+1. **Aceita três tipos de entrada**: arquivo **PDF**, **URL do YouTube** ou **arquivo de áudio** (`.mp3`, `.wav`, `.m4a`, `.ogg`, `.opus`, `.flac`) — por drag-and-drop, seletor de arquivo ou campo de URL.
+2. **Extrai o conteúdo localmente**:
+   - PDF → Markdown via `pymupdf4llm`
+   - YouTube → legenda pronta via `youtube-transcript-api`; sem legenda, baixa o áudio com `yt-dlp` e transcreve com `faster-whisper` (funciona em qualquer vídeo)
+   - Áudio local → transcrição direta com `faster-whisper`
+3. **Processa com o backend escolhido** (ver abaixo), aplicando o prompt selecionado + a instrução fixa de estrutura.
+4. **Salva no Obsidian** como pasta de tema com notas linkadas (ou nota única, no fallback).
+5. **Projeta o mapa de conhecimento** — grafo radial do tema recém-criado, lido do próprio vault; clicar num nó abre a nota no Obsidian.
+6. **Registra a sessão** no `study-log.md` (data, fonte, prompt, status, duração, modo).
+7. **Toca música em segundo plano** — lança o SimpMusic sem dividir a tela e o controla pelo mini-player embutido (MPRIS).
 
-1. **Lança o Simpmusic** automaticamente com sua playlist de foco ao abrir
-2. **Aceita um PDF ou URL do YouTube** via interface gráfica simples
-3. **Extrai o conteúdo localmente** — sem depender de internet para a parte local
-4. **Processa via NotebookLM** (quando disponível) — manda o conteúdo, aplica um prompt escolhido por você, captura a resposta
-5. **Salva uma nota estruturada no Obsidian** automaticamente, com template fixo
-6. **Registra a sessão no log de progresso** — data, fonte, prompt, status
-7. **Fecha o Simpmusic** junto quando você fecha o Kairos
-
-Se o NotebookLM estiver inacessível (sessão expirada, Google fora do ar), o sistema não trava — salva o texto bruto localmente e marca a nota como `#pendente-notebooklm` para reprocessar depois.
+Se o backend de IA falhar, o sistema **não trava nem perde dados**: salva o texto bruto com a tag `#pendente-notebooklm` para reprocessar depois.
 
 ---
 
-## Stack técnica
+## Os três backends de processamento
 
-| Componente | Tecnologia | Justificativa |
+O processamento é plugável — você escolhe nas Configurações. Todos respeitam o mesmo contrato (`process(text, prompt) -> (markdown, modo)`), e qualquer falha cai automaticamente no fallback local que preserva o texto bruto.
+
+| Backend | Como funciona | Trade-off |
 |---|---|---|
-| Interface gráfica | **PySide6** | Bindings Qt6 oficiais, LGPL, pacote nativo no Arch (`extra/pyside6 6.11.1`) |
-| Compilação para executável | **Nuitka** (versão travada) | Recomendado pelo próprio Qt para deploy PySide6 em Linux |
-| Automação NotebookLM | **`notebooklm-py`** | Abstrai o Playwright, mantido pela comunidade, API programática completa |
-| Extração de PDF | **`pymupdf4llm`** | Output em Markdown otimizado para LLMs, 8-12x mais rápido que alternativas, AGPL (ok para uso pessoal/open source) |
-| Transcrição YouTube | **`youtube-transcript-api`** + **`yt-dlp`** | Dois níveis de fallback — API direta primeiro, download de legenda depois |
-| Notas | **Obsidian vault local** | Markdown puro, sem cloud, sem dependência externa |
-| Log de sessões | **Markdown append-only** | Simples, legível, rastreável, sem banco de dados |
-| Player de música | **Simpmusic** (subprocess) | Client YouTube do usuário, integrado via processo externo |
-| Revisão espaçada | **Anki** (futuro) | Integração via plugin Obsidian → Anki |
+| **NotebookLM** (padrão) | `notebooklm-py` automatiza o NotebookLM do Google num subprocesso isolado | Gratuito e poderoso, mas usa APIs internas não documentadas — a sessão expira e a lib pode quebrar quando o Google mudar algo |
+| **Gemini** | API oficial via `google-genai`; chave nas Configurações ou na variável `GEMINI_API_KEY` | Estável; **no free tier o Google pode usar os inputs para treinar modelos** (aviso exibido no app) |
+| **Local (Ollama)** | HTTP para `http://localhost:11434`, modelo configurável (default `llama3.1:8b`) | 100% offline e privado; qualidade e velocidade dependem do hardware |
 
-### Por que não Tauri
+### Reliability do NotebookLM
 
-Tauri foi avaliado e descartado por bugs ativos e confirmados no tracker oficial onde sidecars (processos externos Python) falham silenciosamente ao gerar AppImage no Linux. O app funciona em modo desenvolvimento mas quebra no build final — exatamente o caso de uso do Kairos.
+- **Auth check no startup**: se a sessão caiu, o app avisa em PT-BR ("Sessão do NotebookLM expirada — renove os cookies no terminal: `notebooklm auth refresh --browser-cookies chrome`") e segue funcionando via fallback.
+- **Keepalive opcional via systemd** (renova os cookies periodicamente):
 
-### Por que não GTK4/libadwaita diretamente
+```ini
+# ~/.config/systemd/user/kairos-notebooklm.service
+[Service]
+Type=oneshot
+ExecStart=%h/Documentos/Kairos/.venv/bin/notebooklm auth refresh
 
-Já foi usado em projetos anteriores (SimpleCustomizer). É viável para desenvolvimento, mas os bindings Python para GTK4 têm empacotamento instável com PyInstaller/Nuitka para distribuição. PySide6 tem pipeline de distribuição mais testado e documentado no Linux.
+# ~/.config/systemd/user/kairos-notebooklm.timer
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+[Install]
+WantedBy=timers.target
+```
 
-### Sobre o `notebooklm-py`
-
-É uma biblioteca não-oficial que usa APIs internas não documentadas do Google. **Vai quebrar eventualmente** quando o Google atualizar algo. Isso é documentado pelo próprio mantenedor e aceito como trade-off. O sistema tem fallback local para lidar com isso sem interromper o fluxo de estudo.
+```bash
+systemctl --user enable --now kairos-notebooklm.timer
+```
 
 ---
 
-## Ecossistema externo integrado
+## Sistema de prompts com injeção de estrutura
 
-### Obsidian
-Vault local em Markdown. O Kairos escreve notas diretamente nos arquivos `.md` — sem plugin, sem API, só escrita de arquivo. Plugins recomendados para usar junto:
+Os prompts ("Como aprender") são editáveis: a sidebar lista os defaults (Explique como iniciante, Conceitos-chave, Perguntas de revisão, Só o prático, Entenda profundamente, Aprenda na prática, Conecte conceitos, Resumo para revisão, Aplicação em cibersegurança) e as Configurações permitem criar, editar e remover.
 
-- **Spaced Repetition** — flashcards diretamente nas notas, algoritmo FSRS
-- **Dataview** — painéis dinâmicos de progresso
-- **Templater** — template de sessão que elimina a decisão de como começar
-- **Canvas** — mapa visual de território (o que já foi explorado)
+A todo prompt, o processor concatena **a instrução fixa de estrutura** — não editável, parte da arquitetura:
 
-### Anki
-Software de flashcards open source com repetição espaçada. Integração futura via plugin Obsidian → Anki: cards criados nas notas são exportados automaticamente. Decks prontos de cibersegurança disponíveis no AnkiWeb.
+> "Estruture o conteúdo como um tema principal com sub-temas conectados. No Obsidian: o tema vira uma pasta, cada sub-tema uma nota linkada de volta ao tema central."
 
-### NotebookLM (Google)
-Ferramenta de IA do Google que processa documentos e gera resumos, explicações, perguntas de revisão e Audio Overviews (áudio estilo podcast). Usado como serviço externo pontual — não é dependência central. Requer login com conta Google.
+É essa instrução que faz qualquer backend devolver `# Tema` + `## Sub-temas`, que o writer converte em estrutura navegável e o mapa consegue projetar. O editor de prompt exibe o bloco em destaque (read-only) para deixar o contrato visível.
 
-### Simpmusic
-Client YouTube do usuário. Lançado automaticamente ao abrir o Kairos, encerrado junto. Fornece o áudio ambiente de foco (lo-fi, brown noise, trilhas de jogos) que estudos mostram melhorar memória de trabalho vs. silêncio.
+### Estrutura gerada no vault
+
+```
+<Vault>/kairos/<Tema>/
+   ├── <Tema>.md          ← nota central, com links [[Sub-tema]]
+   ├── <Sub-tema 1>.md    ← cada sub-nota linka [[<Tema>]] de volta
+   ├── <Sub-tema 2>.md
+   └── ...
+```
+
+No fallback (texto bruto, sem `##`), salva nota única `AAAA-MM-DD-<fonte>.md` — o comportamento original.
+
+---
+
+## Mapa de conhecimento
+
+Após um processamento bem-sucedido, o Kairos lê a pasta do tema recém-criado (somente ela — nunca escaneia o vault inteiro), extrai os `[[wikilinks]]` da nota central e projeta um **grafo radial**: tema no centro, sub-temas em círculo. Clicar em qualquer nó abre a nota no Obsidian via `obsidian://open`. Read-only por princípio: o Kairos desenha o que está no vault, não inventa.
+
+---
+
+## Mini-player (SimpMusic via MPRIS)
+
+- No startup, o Kairos lança o SimpMusic **em segundo plano** (no Hyprland, registra windowrules via `hyprctl` para a janela nascer num workspace especial silencioso — sem dividir a tela).
+- O mini-player no rodapé da sidebar lê título/artista/status via `playerctl` (polling leve em thread) e controla play/pause/next/previous.
+- Volume é ajustado por stream no PipeWire/Pulse (`pactl`), porque o SimpMusic não implementa a propriedade Volume do MPRIS.
+- Ao fechar o Kairos, o SimpMusic é encerrado com graceful shutdown.
+
+Requisitos: `playerctl` (controle/metadados) e `pactl` (volume) instalados.
+
+---
+
+## Interface
+
+Qt Quick (QML) com PySide6. Design tokens centralizados em `Theme.qml` (dois temas, claro/escuro, com toggle persistido), tipografia JetBrains Mono, acento âmbar. A UI nunca bloqueia: extração, processamento e escrita rodam em `QThread`, com pipeline tracker (Extração → NotebookLM → Síntese → Obsidian), tempo decorrido e status em tempo real. Suporte a movimento reduzido (desativa pulsos e animações) nas Configurações.
 
 ---
 
 ## Arquitetura interna
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                  KAIROS (PySide6)                   │
-│              Janela nativa Linux                    │
-│           Compilada com Nuitka standalone           │
-│                                                     │
-│  ┌──────────────┐      ┌──────────────────────────┐ │
-│  │   Sidebar    │      │     Área Principal       │ │
-│  │              │      │                          │ │
-│  │  • Sessão    │      │  ┌──────────────────┐    │ │
-│  │    atual     │      │  │   Drop Zone      │    │ │
-│  │              │      │  │  PDF / YouTube   │    │ │
-│  │  • Log de    │      │  └──────────────────┘    │ │
-│  │    sessões   │      │                          │ │
-│  │              │      │  Seletor de Prompt       │ │
-│  │  • Config    │      │  ┌──────────────────┐    │ │
-│  │              │      │  │ • Como iniciante │    │ │
-│  └──────────────┘      │  │ • Conceitos-chave│    │ │
-│                         │  │ • Perguntas rev. │    │ │
-│                         │  │ • Só prático     │    │ │
-│                         │  │ • Cybersecurity  │    │ │
-│                         │  └──────────────────┘    │ │
-│                         │                          │ │
-│                         │  [▶ Processar]           │ │
-│                         │                          │ │
-│                         │  Status em tempo real    │ │
-│                         │  ████████░░ Extraindo... │ │
-│                         └──────────────────────────┘ │
-└──────────────────────────┬──────────────────────────┘
-                           │
-              ┌────────────▼────────────┐
-              │    PIPELINE INTERNO     │
-              │      (Python puro)      │
-              └────────────┬────────────┘
-                           │
-        ┌──────────────────┼──────────────────┐
-        │                  │                  │
-        ▼                  ▼                  ▼
-   ingestor.py        launcher.py        config.py
-   Identifica o       Abre/fecha         Lê ~/.config/
-   tipo de input      Simpmusic          kairos/config.json
-   (PDF ou YouTube)   via subprocess
-        │
-        ├── PDF ──────────────────────────────────────┐
-        │                                             │
-        │   pymupdf4llm                               │
-        │   Extrai texto → Markdown estruturado       │
-        │   local, sem internet, sem dependência      │
-        │                                             │
-        └── YouTube ──────────────────────────────────┤
-                                                      │
-            youtube-transcript-api                    │
-            Tenta pegar transcrição diretamente       │
-                 │                                    │
-                 └─ falhou? ──► yt-dlp               │
-                               Baixa só legenda       │
-                               (--skip-download)      │
-                                         │            │
-                                         ▼            ▼
-                                    processor.py ◄────┘
-                                    Recebe o texto extraído
-                                              │
-                              ┌───────────────┴────────────────┐
-                              │                                │
-                        NÍVEL 1                          NÍVEL 2
-                    notebooklm-py                    Fallback local
-                    disponível?                      (sessão expirada
-                         │                           / Google fora)
-                         │ sim                             │
-                         ▼                                 ▼
-                  Cria notebook               Salva texto bruto
-                  Sobe conteúdo              Tag: #pendente-notebooklm
-                  Aplica prompt              Anotação no log
-                  Captura resposta
-                         │
-                         └────────────────────┐
-                                              │
-                                              ▼
-                                        writer.py
-                                  Gera arquivo .md
-                                  com template fixo
-                                  Salva no vault do
-                                  Obsidian
-                                              │
-                                              ▼
-                                        logger.py
-                                  Append em study-log.md
-                                  Data | Fonte | Prompt
-                                  Duração | Status
-```
-
----
-
-## Fluxo completo de uma sessão
-
-```
-01. Usuário abre o Kairos
-        │
-02.     └─► launcher.py inicia o Simpmusic
-               Playlist de foco começa automaticamente
-
-03. Interface carrega
-        Template de sessão pré-preenchido:
-        data atual + objetivo (campo editável)
-
-04. Usuário arrasta um PDF ou cola URL do YouTube
-        Drop zone aceita ambos
-        Identificação automática do tipo
-
-05. Usuário escolhe o prompt:
-        "Explique como se eu nunca tivesse visto esse assunto"
-        "Quais são os conceitos-chave?"
-        "Crie perguntas de revisão"
-        "Resuma só os pontos práticos, ignore teoria pura"
-        "Como isso se aplica em cibersegurança?"
-        [+ prompts customizados que você adiciona]
-
-06. Clica em [▶ Processar]
-        Barra de progresso aparece
-        Status atualiza em tempo real:
-        "Extraindo texto..."
-        "Conectando ao NotebookLM..."
-        "Processando..."
-        "Salvando nota..."
-
-07. Pipeline executa (em background, sem travar a UI):
-        PDF → pymupdf4llm → texto markdown
-        YouTube → transcript-api / yt-dlp → texto
-        texto → notebooklm-py → resposta processada
-            └─ falhou? → texto bruto com tag #pendente
-
-08. writer.py salva no Obsidian:
-        ~/obsidian-vault/kairos/2026-06-05-nome-do-arquivo.md
-
-09. logger.py registra no log:
-        | 2026-06-05 | 14:32 | redes-basicas.pdf | Conceitos-chave | ✓ | 2m14s |
-
-10. Interface mostra: "Nota salva em Obsidian ✓"
-        Link clicável para abrir no Obsidian
-
-11. Usuário fecha o Kairos
-        └─► launcher.py encerra o Simpmusic
-```
-
----
-
-## Template da nota gerada no Obsidian
-
-```markdown
----
-date: 2026-06-05
-time: 14:32
-source: redes-basicas.pdf
-source_type: pdf
-prompt: "Quais são os conceitos-chave?"
-processed_by: notebooklm
-tags: [kairos, pendente-revisao]
-session_duration: 2m14s
----
-
-# redes-basicas — Conceitos-chave
-
-## Resposta do NotebookLM
-
-[conteúdo processado aqui]
-
----
-
-## Contexto da sessão
-
-> Objetivo da sessão: entender o básico de endereçamento IP
-
----
-
-*Gerado pelo Kairos em 2026-06-05 às 14:32*
-*Fonte original: `/home/user/downloads/redes-basicas.pdf`*
-```
-
----
-
-## Estrutura de arquivos do projeto
-
-```
 kairos/
-│
-├── README.md                        ← este arquivo
-│
-├── requirements.txt                 ← dependências Python com versões travadas
-├── requirements-dev.txt             ← dependências de desenvolvimento (Nuitka, etc)
-│
-├── build.sh                         ← script de build do executável via Nuitka
-├── run.sh                           ← atalho para rodar em modo desenvolvimento
-│
-├── kairos/                          ← pacote principal
-│   ├── __init__.py
-│   ├── main.py                      ← ponto de entrada, inicializa a aplicação
-│   │
-│   ├── ui/                          ← interface gráfica PySide6
-│   │   ├── __init__.py
-│   │   ├── main_window.py           ← janela principal
-│   │   ├── sidebar.py               ← sidebar com log e config
-│   │   ├── drop_zone.py             ← widget de arrastar/soltar arquivo
-│   │   ├── prompt_selector.py       ← seletor de prompts
-│   │   ├── progress_bar.py          ← barra de progresso com status
-│   │   └── styles.qss               ← stylesheet Qt (tema visual)
-│   │
-│   ├── pipeline/                    ← lógica de processamento
-│   │   ├── __init__.py
-│   │   ├── ingestor.py              ← identifica o tipo de input e roteia
-│   │   ├── pdf_extractor.py         ← pymupdf4llm → texto markdown
-│   │   ├── youtube_extractor.py     ← transcript-api + yt-dlp fallback
-│   │   ├── processor.py             ← notebooklm-py + fallback local
-│   │   ├── writer.py                ← gera e salva .md no vault Obsidian
-│   │   └── logger.py                ← append no study-log.md
-│   │
-│   ├── integrations/                ← integrações externas
-│   │   ├── __init__.py
-│   │   ├── notebooklm_client.py     ← wrapper do notebooklm-py
-│   │   └── launcher.py              ← abre/fecha Simpmusic via subprocess
-│   │
-│   └── config/                      ← configuração
-│       ├── __init__.py
-│       ├── config.py                ← lê/escreve ~/.config/kairos/config.json
-│       └── defaults.py              ← valores padrão (prompts, caminhos, etc)
-│
-├── assets/
-│   ├── icon.png                     ← ícone do app
-│   └── icon.svg
-│
-└── tests/                           ← testes unitários (futuro)
-    ├── test_pdf_extractor.py
-    ├── test_youtube_extractor.py
-    └── test_writer.py
+├── main.py                      ← bootstrap: QApplication + QQmlApplicationEngine
+├── ui/                          ← interface — sem lógica de negócio
+│   ├── backend.py               ← Backend(QObject): a única ponte QML↔Python
+│   ├── workers.py               ← QThread workers (extração/processamento/escrita/música)
+│   └── qml/
+│       ├── main.qml             ← janela, sidebar, painel principal
+│       ├── Theme.qml            ← design tokens (única fonte de cores/tamanhos)
+│       ├── DropZone.qml         ← drag-and-drop com estados idle/dragover/accepted/invalid
+│       ├── PipelineTracker.qml  ← 4 nós com estados e animações
+│       ├── KnowledgeMap.qml     ← grafo radial do tema
+│       ├── SettingsDialog.qml   ← caminhos, backend, prompts, interface
+│       ├── PromptEditDialog.qml ← editor com bloco da instrução de estrutura
+│       └── IconSvg.qml          ← ícones line-art por path SVG
+├── pipeline/                    ← processamento — sem UI
+│   ├── ingestor.py              ← identifica o tipo de fonte e roteia
+│   ├── pdf_extractor.py         ← PDF → Markdown (pymupdf4llm)
+│   ├── youtube_extractor.py     ← legenda pronta → fallback yt-dlp + faster-whisper
+│   ├── audio_extractor.py       ← arquivo de áudio → faster-whisper
+│   ├── processor.py             ← roteador de backends + injeção de estrutura + fallback
+│   ├── writer.py                ← pasta de tema + notas linkadas no vault
+│   └── logger.py                ← study-log.md (append-only)
+├── integrations/                ← serviços externos
+│   ├── notebooklm_client.py     ← NotebookLM em subprocesso isolado + auth check
+│   ├── gemini_client.py         ← API Gemini (google-genai)
+│   ├── local_client.py          ← Ollama via HTTP
+│   ├── obsidian_graph.py        ← leitor read-only da pasta do tema
+│   ├── music_mpris.py           ← playerctl/pactl (metadados, controles, volume)
+│   └── launcher.py              ← lança/encerra o SimpMusic em segundo plano
+└── config/
+    ├── config.py                ← lê/escreve ~/.config/kairos/config.json
+    └── defaults.py              ← DEFAULT_CONFIG + prompts + instrução de estrutura
 ```
+
+**Fluxo:** `fonte → ingestor → extractor → processor → writer → logger → mapa`
 
 ---
 
-## Arquivo de configuração
+## Stack
 
-Localização: `~/.config/kairos/config.json`
+| Componente | Tecnologia |
+|---|---|
+| GUI | PySide6 / Qt Quick (pacman `extra/pyside6`, nunca pip) |
+| Build | Nuitka **4.1.2** (travado) |
+| NotebookLM | `notebooklm-py 0.7.0` |
+| Gemini | `google-genai 2.7.0` |
+| Ollama | HTTP local, sem SDK |
+| PDF | `pymupdf4llm 0.0.17` |
+| YouTube | `youtube-transcript-api 1.2.4` + `yt-dlp` |
+| Transcrição | `faster-whisper` (CPU/int8, modelo configurável) |
+| Música | SimpMusic + `playerctl` (MPRIS) + `pactl` |
+| Config | `~/.config/kairos/config.json` |
+
+---
+
+## Configuração
+
+`~/.config/kairos/config.json` (criado com defaults no primeiro uso):
 
 ```json
 {
-  "obsidian_vault_path": "/home/user/obsidian-vault",
+  "obsidian_vault_path": "/home/voce/Documentos/Obsidian Vault",
   "kairos_folder": "kairos",
   "log_filename": "study-log.md",
-  "simpmusic_path": "/usr/bin/simpmusic",
+  "simpmusic_path": "/caminho/para/SimpMusic.AppImage",
   "simpmusic_autostart": true,
+  "reduce_motion": false,
+  "dark_mode": true,
   "notebooklm_home": "~/.notebooklm",
-  "prompts": [
-    {
-      "id": "beginner",
-      "label": "Explique como iniciante",
-      "text": "Explique esse conteúdo como se eu nunca tivesse visto esse assunto antes. Use exemplos práticos e evite jargão."
-    },
-    {
-      "id": "concepts",
-      "label": "Conceitos-chave",
-      "text": "Quais são os conceitos-chave desse material? Liste e explique cada um brevemente."
-    },
-    {
-      "id": "review",
-      "label": "Perguntas de revisão",
-      "text": "Crie 5 perguntas de revisão sobre esse conteúdo, do mais básico ao mais avançado."
-    },
-    {
-      "id": "practical",
-      "label": "Só o prático",
-      "text": "Resuma apenas os pontos práticos e aplicáveis desse conteúdo. Ignore teoria pura e definições abstratas."
-    },
-    {
-      "id": "cybersec",
-      "label": "Aplicação em cibersegurança",
-      "text": "Como esse conteúdo se aplica em cibersegurança? Quais são os casos de uso práticos, ferramentas relacionadas e possíveis vetores de ataque ou defesa?"
-    }
-  ]
+  "whisper_model": "small",
+  "processor_backend": "notebooklm",
+  "gemini_api_key": "",
+  "gemini_model": "gemini-flash-latest",
+  "ollama_host": "http://localhost:11434",
+  "ollama_model": "llama3.1:8b",
+  "prompts": [ { "id": "...", "label": "...", "text": "..." } ]
 }
 ```
 
+O essencial (vault, SimpMusic, backend, chave do Gemini, modelo do Ollama, prompts) é editável pela própria UI.
+
 ---
 
-## Configuração do ambiente de desenvolvimento
+## Setup e execução
 
-### Pré-requisitos
+### Pré-requisitos (Arch / CachyOS)
 
 ```bash
-# Arch Linux / CachyOS
-sudo pacman -S python pyside6 pyside6-tools
-
-# Dependências do sistema para Playwright (notebooklm-py)
-sudo pacman -S chromium
-
-# yt-dlp
-sudo pacman -S yt-dlp
+sudo pacman -S python pyside6 yt-dlp playerctl
+# Ollama opcional (backend local):
+# sudo pacman -S ollama && ollama pull llama3.1:8b
 ```
 
-### Setup do projeto
+### Rodar em desenvolvimento
 
 ```bash
-git clone https://github.com/seu-usuario/kairos.git
-cd kairos
+git clone <repo> && cd Kairos
+./run.sh        # cria .venv --system-site-packages, instala deps e abre o app
+```
 
-# Criar ambiente virtual
-python -m venv .venv
+### Autenticar no NotebookLM (se for usar esse backend)
+
+```bash
 source .venv/bin/activate
-
-# Instalar dependências
-pip install -r requirements.txt
-
-# Instalar Playwright browsers (necessário para notebooklm-py)
-playwright install chromium
-
-# Fazer login no NotebookLM (único passo manual, salva sessão)
 notebooklm login
-
-# Rodar em modo desenvolvimento
-./run.sh
 ```
 
-### Build do executável
+### Build standalone (Nuitka)
 
 ```bash
-# Ativar venv
-source .venv/bin/activate
-
-# Build standalone (gera kairos.dist/)
-./build.sh
-
-# Executar o binário gerado
-./dist/kairos
+./build.sh      # gera dist/kairos (onefile)
 ```
 
-O `build.sh` usa as flags:
-```bash
-python -m nuitka \
-  --standalone \
-  --enable-plugin=pyside6 \
-  --include-qt-plugins=sensible,styles,platforms \
-  --follow-imports \
-  --output-dir=dist \
-  kairos/main.py
-```
-
----
-
-## Dependências (requirements.txt)
+Flags relevantes do build — imports lazy e data files que o `--follow-imports` não captura:
 
 ```
-# Interface
-# PySide6 instalado via pacman: sudo pacman -S pyside6
-
-# Extração de PDF
-pymupdf4llm==0.0.17
-
-# YouTube
-youtube-transcript-api==1.2.4
-yt-dlp==2026.3.17
-
-# Automação NotebookLM
-notebooklm-py==0.7.0
-
-> **Importante:** versões travadas intencionalmente.
-> `notebooklm-py` e `yt-dlp` mudam com frequência para acompanhar mudanças no Google/YouTube.
-> Atualize um de cada vez e teste antes de commitar.
-
----
-
-## Ordem de implementação
-
-O projeto foi planejado para que cada etapa entregue algo funcional — você nunca fica com código pela metade sem poder testar.
-
+--enable-plugin=pyside6
+--include-qt-plugins=sensible,styles,platforms,qml
+--include-data-dir=kairos/ui/qml=kairos/ui/qml
+--include-package=pymupdf --include-package=pymupdf4llm
+--include-package=notebooklm
+--include-package=faster_whisper --include-package=ctranslate2 --include-package=av
 ```
-Etapa 1  →  GUI base rodando: janela, sidebar, drop zone, botão
-Etapa 2  →  Simpmusic abrindo e fechando com o app
-Etapa 3  →  Drop de PDF funcionando + feedback visual de progresso
-Etapa 4  →  pymupdf4llm extraindo texto e mostrando preview
-Etapa 5  →  Playwright conectando no NotebookLM + processamento
-Etapa 6  →  writer.py salvando nota no vault Obsidian
-Etapa 7  →  logger.py registrando sessões no study-log.md
-Etapa 8  →  Fallback local quando NotebookLM falha
-Etapa 9  →  Suporte a YouTube (transcript-api + yt-dlp)
-Etapa 10 →  Prompts configuráveis pela interface
-Etapa 11 →  Build .standalone via Nuitka
-```
+
+> O PyMuPDF importa como `pymupdf` (não `fitz`). O `yt-dlp` é chamado como CLI (subprocess), então **não** entra em `--include-package` — precisa estar no PATH do sistema. Nuitka fica travado em 4.1.2 (`requirements-dev.txt`).
 
 ---
 
 ## Riscos conhecidos e mitigações
 
-### `notebooklm-py` pode quebrar
-**Causa:** usa APIs internas não documentadas do Google.
-**Frequência:** imprevisível — a cada update do NotebookLM.
-**Mitigação:** fallback local implementado no `processor.py`. Quando falha, salva texto bruto com tag `#pendente-notebooklm`. Você reprocessa quando a biblioteca for atualizada.
-**Ação quando quebrar:** `pip install --upgrade notebooklm-py` e testar.
-
-### `youtube-transcript-api` pode falhar em alguns vídeos
-**Causa:** YouTube muda endpoints internamente; alguns vídeos não têm transcrição.
-**Mitigação:** `yt-dlp` como segunda camada (`--write-auto-sub --skip-download`). Se ambos falharem, o Kairos informa e não processa.
-
-### Nuitka pode regredir com PySide6
-**Causa:** histórico de incompatibilidades entre versões do Nuitka e PySide6.
-**Mitigação:** versão do Nuitka travada no `requirements-dev.txt`. Só atualizar após testar.
-
-### Sessão do NotebookLM expira
-**Causa:** tokens Google têm validade.
-**Mitigação:** `notebooklm-py` tem renovação automática de CSRF em 5 camadas. Se expirar completamente, roda `notebooklm login` — processo de menos de 1 minuto.
-
----
-
-## Contexto de aprendizado
-
-O Kairos é parte de um sistema maior de estudo, não apenas um app isolado. O ecossistema completo inclui:
-
-**Obsidian** como segundo cérebro — notas conectadas, mapa de território do que foi aprendido, progresso visível acumulado.
-
-**Anki** para revisão espaçada — flashcards gerados a partir das notas do Obsidian, revisados em ciclos que aumentam progressivamente.
-
-**NotebookLM** como processador de material denso — teoria que entra pelo ouvido (Audio Overview) enquanto você pratica no terminal.
-
-**Simpmusic** como ambiente sonoro — lo-fi beats ou brown noise que estudos mostram melhorar memória de trabalho vs. silêncio.
-
-O sistema foi desenhado em torno de sete princípios derivados da neurociência do aprendizado para TDAH/TEA:
-
-1. **Prática primeiro** — experimento antes da teoria
-2. **Chunking** — uma unidade por sessão, saída visível obrigatória
-3. **Dopamina estruturada** — antecipação antes da sessão, não só recompensa depois
-4. **Revisão espaçada** — micro-tarefas práticas, não flashcards abstratos
-5. **Scaffolding externo** — o ambiente carrega parte da carga cognitiva
-6. **Ciclos curtos** — sessões de 25 minutos, uma linha de log ao fim
-7. **Exploração legitimada** — mapa de território, não currículo linear
+| Risco | Mitigação |
+|---|---|
+| `notebooklm-py` quebra quando o Google muda APIs internas | Fallback local automático preserva o texto (`#pendente-notebooklm`); backends Gemini/Ollama como alternativa estrutural |
+| Sessão do NotebookLM expira | Auth check no startup + aviso PT-BR + timer systemd opcional de keepalive |
+| Vídeo sem legenda | Caminho principal já é áudio + Whisper — legenda pronta é só o atalho rápido |
+| Nuitka regride com PySide6 | Versão travada em 4.1.2; só atualizar testando |
+| SimpMusic sem MPRIS/instância duplicada | Detecção via bus antes de lançar; controles viram no-op sem `playerctl` |
 
 ---
 
 ## Licença
 
 MIT — use, modifique, distribua.
-Se você usar `pymupdf4llm`, seu projeto também fica sujeito à AGPL para distribuição comercial. Para uso pessoal e open source, sem restrição.
+O `pymupdf4llm` é AGPL: sem restrição para uso pessoal/open source; distribuição comercial fica sujeita à AGPL.
 
 ---
 

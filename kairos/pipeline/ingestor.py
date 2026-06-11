@@ -1,7 +1,12 @@
 import logging
 from pathlib import Path
 
-from kairos.pipeline import pdf_extractor, youtube_extractor
+from kairos.pipeline import (
+    audio_extractor,
+    pdf_extractor,
+    text_extractor,
+    youtube_extractor,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -11,13 +16,13 @@ def _is_youtube_url(source: str) -> bool:
 
 
 def ingest(source: str) -> tuple[str, str]:
-    """Recebe path de PDF ou URL do YouTube e retorna (texto_extraído, tipo).
+    """Recebe path de PDF/áudio ou URL do YouTube e retorna (texto_extraído, tipo).
 
     Args:
-        source: Caminho completo de um arquivo PDF ou URL do YouTube.
+        source: Caminho completo de um arquivo PDF/áudio ou URL do YouTube.
 
     Returns:
-        Tupla (texto, tipo) onde tipo é "pdf" ou "youtube".
+        Tupla (texto, tipo) onde tipo é "pdf", "text", "audio" ou "youtube".
 
     Raises:
         ValueError: Tipo de fonte não suportado.
@@ -34,5 +39,15 @@ def ingest(source: str) -> tuple[str, str]:
         logger.info(f"Fonte identificada como PDF: {path.name}")
         text = pdf_extractor.extract_text(source)
         return (text, 'pdf')
+
+    if path.suffix.lower() in text_extractor.TEXT_SUFFIXES:
+        logger.info(f"Fonte identificada como texto: {path.name}")
+        text = text_extractor.extract_text(source)
+        return (text, 'text')
+
+    if path.suffix.lower() in audio_extractor.AUDIO_SUFFIXES:
+        logger.info(f"Fonte identificada como áudio: {path.name}")
+        text = audio_extractor.extract_text(source)
+        return (text, 'audio')
 
     raise ValueError(f"Tipo de fonte não suportado: {path.name or source}")

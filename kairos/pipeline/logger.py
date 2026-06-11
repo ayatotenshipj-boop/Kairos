@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 from kairos.config import config as cfg
+from kairos.util import format_duration
 
 logger = logging.getLogger(__name__)
 
@@ -10,12 +11,6 @@ _HEADER = (
     "| Data | Hora | Fonte | Prompt | Status | Duração | Modo |\n"
     "|------|------|-------|--------|--------|---------|------|\n"
 )
-
-
-def _format_duration(seconds: float) -> str:
-    total = max(0, int(round(seconds)))
-    m, s = divmod(total, 60)
-    return f"{m}m{s:02d}s"
 
 
 def log_session(
@@ -51,7 +46,7 @@ def log_session(
         else:
             source_name = Path(source).name if source else source
 
-        duration_str = _format_duration(duration_seconds)
+        duration_str = format_duration(duration_seconds)
 
         row = (
             f"| {date_str} | {time_str} | {source_name} | "

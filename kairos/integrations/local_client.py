@@ -12,22 +12,47 @@ _REQUEST_TIMEOUT_S = 300
 
 
 class LocalError(Exception):
-    """Erro do backend local (Ollama) — sempre com mensagem em PT-BR."""
+    """Erro do backend local — sempre com mensagem em PT-BR."""
     pass
 
 
+def _first_model(host: str) -> str:
+    """Pergunta ao servidor local quais modelos existem e retorna o primeiro.
+
+    O Kairos não assume nenhum modelo: o servidor é a fonte da verdade.
+    """
+    try:
+        with urllib.request.urlopen(f"{host}/api/tags", timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        raise LocalError(
+            f"Servidor local indisponível em {host} — inicie o serviço e tente de novo. ({e.reason})"
+        ) from e
+    except Exception as e:  # noqa: BLE001 — converte qualquer falha em mensagem PT-BR
+        raise LocalError(f"Não foi possível consultar o servidor local em {host}: {e}") from e
+
+    models = data.get("models") or []
+    for m in models:
+        name = (m.get("model") or m.get("name") or "").strip()
+        if name:
+            return name
+    raise LocalError(
+        "Nenhum modelo disponível no servidor local — carregue um modelo e tente de novo."
+    )
+
+
 def process(text: str, prompt: str) -> tuple[str, str]:
-    """Processa texto via Ollama local (HTTP).
+    """Processa texto via servidor local (HTTP), modelo inferido pelo servidor.
 
     Returns:
         Tupla (resultado, "ollama") em caso de sucesso.
 
     Raises:
-        LocalError: serviço indisponível, modelo ausente ou resposta inválida.
+        LocalError: serviço indisponível, sem modelo ou resposta inválida.
     """
     config = cfg.load()
-    host = str(config.get("ollama_host", "http://localhost:11434")).rstrip("/")
-    model = config.get("ollama_model", "llama3.1:8b")
+    host = str(config.get("local_endpoint", "http://localhost:11434")).rstrip("/")
+    model = _first_model(host)
 
     payload = json.dumps({
         "model": model,
@@ -43,26 +68,26 @@ def process(text: str, prompt: str) -> tuple[str, str]:
     )
 
     try:
-        logger.info("Processando via Ollama (modelo %s)...", model)
+        logger.info("Processando via servidor local (modelo %s)...", model)
         with urllib.request.urlopen(request, timeout=_REQUEST_TIMEOUT_S) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code == 404:
             raise LocalError(
-                f"Modelo '{model}' não encontrado no Ollama. "
-                f"Baixe-o com: ollama pull {model}"
+                f"Modelo '{model}' não encontrado no servidor local. "
+                f"Carregue-o e tente de novo."
             ) from e
-        raise LocalError(f"Falha na requisição ao Ollama: HTTP {e.code}") from e
+        raise LocalError(f"Falha na requisição ao servidor local: HTTP {e.code}") from e
     except urllib.error.URLError as e:
         raise LocalError(
-            f"Ollama indisponível em {host} — inicie o serviço com 'ollama serve'. ({e.reason})"
+            f"Servidor local indisponível em {host} — inicie o serviço e tente de novo. ({e.reason})"
         ) from e
     except Exception as e:  # noqa: BLE001 — converte qualquer falha em mensagem PT-BR
-        raise LocalError(f"Erro inesperado ao processar no Ollama: {e}") from e
+        raise LocalError(f"Erro inesperado ao processar no servidor local: {e}") from e
 
     answer = (data.get("response") or "").strip()
     if not answer:
-        raise LocalError("O Ollama retornou uma resposta vazia.")
+        raise LocalError("O servidor local retornou uma resposta vazia.")
 
-    logger.info("Resposta recebida do Ollama")
+    logger.info("Resposta recebida do servidor local")
     return (answer, "ollama")

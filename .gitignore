@@ -38,3 +38,12 @@ patchelf/
 
 # Nota: ~/.config/kairos/config.json é gerado em tempo de execução
 # e nunca entra no repositório (está fora da árvore do git).
+
+kairos.pid
+
+# Agent/editor tooling — não faz parte do app
+.claude/
+skills/
+
+# Protótipos descartáveis
+kairos/kairos_ui_prototype_v2.html

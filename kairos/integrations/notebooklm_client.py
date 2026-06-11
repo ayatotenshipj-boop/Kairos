@@ -21,6 +21,10 @@ _PROCESS_TIMEOUT_S = 300
 # Tempo máximo da verificação de sessão (local é rápido; com rede pode demorar).
 _AUTH_CHECK_TIMEOUT_S = 30
 
+# Título fixo do notebook efêmero criado a cada processamento. Usado também para
+# identificar e varrer órfãos (deletes que falharam em execuções anteriores).
+_TEMP_NOTEBOOK_TITLE = "Kairos — processamento temporário"
+
 
 class NotebookLMError(Exception):
     """Erro do cliente NotebookLM — sempre com mensagem em PT-BR."""
@@ -82,7 +86,8 @@ def auth_check(test_network: bool = False) -> tuple[bool, str]:
     logger.info("auth check retornou código %s: %s", proc.returncode, proc.stderr.strip())
     return (
         False,
-        "Sessão do NotebookLM expirada — rode no terminal: notebooklm auth refresh",
+        "Sessão do NotebookLM expirada — renove os cookies no terminal: "
+        "notebooklm auth refresh --browser-cookies chrome",
     )
 
 
@@ -101,7 +106,8 @@ def _subprocess_entry(text: str, prompt: str, result_queue) -> None:
     except AuthError:
         result_queue.put((
             "err",
-            "Sessão do NotebookLM expirou. Execute 'notebooklm login' no terminal.",
+            "Sessão do NotebookLM expirada — renove os cookies no terminal: "
+            "notebooklm auth refresh --browser-cookies chrome",
         ))
     except SourceAddError:
         result_queue.put(("err", "Falha ao enviar conteúdo para o NotebookLM."))
@@ -139,21 +145,47 @@ def process(text: str, prompt: str) -> tuple[str, str]:
             if not proc.is_alive():
                 break  # processo terminou sem enfileirar resultado (crash nativo)
 
+    if result is None:
+        # Sem resultado: ou estourou o tempo (ainda vivo) ou crashou (já morto).
+        if proc.is_alive():
+            proc.terminate()
+            proc.join(5)
+            raise NotebookLMError("Tempo limite ao processar no NotebookLM.")
+        proc.join(5)
+        logger.error(f"Subprocesso NotebookLM encerrou sem resultado (exitcode={proc.exitcode})")
+        raise NotebookLMError("O processamento do NotebookLM encerrou inesperadamente.")
+
+    # Resultado obtido: o filho pode ainda estar no teardown async pós-enfileiramento
+    # (fechando httpx). Deixa encerrar sozinho; força só se demorar. NÃO tratar
+    # "ainda vivo" como timeout aqui — descartaria um resultado válido já recebido.
+    proc.join(5)
     if proc.is_alive():
         proc.terminate()
         proc.join(5)
-        raise NotebookLMError("Tempo limite ao processar no NotebookLM.")
-
-    proc.join(5)
-
-    if result is None:
-        logger.error(f"Subprocesso NotebookLM encerrou sem resultado (exitcode={proc.exitcode})")
-        raise NotebookLMError("O processamento do NotebookLM encerrou inesperadamente.")
 
     status, payload = result
     if status == "ok":
         return (payload, "notebooklm")
     raise NotebookLMError(payload)
+
+
+async def _sweep_orphan_notebooks(client) -> None:
+    """Remove notebooks temporários órfãos de execuções anteriores cujo delete
+    falhou. Best-effort: nunca interrompe o processamento.
+    """
+    try:
+        notebooks = await asyncio.wait_for(client.notebooks.list(), timeout=15.0)
+    except Exception as e:
+        logger.warning("Não foi possível listar notebooks para limpeza: %s", e)
+        return
+    for nb in notebooks:
+        if getattr(nb, "title", None) != _TEMP_NOTEBOOK_TITLE:
+            continue
+        try:
+            await asyncio.wait_for(client.notebooks.delete(nb.id), timeout=10.0)
+            logger.info("Notebook temporário órfão removido: %s", nb.id)
+        except Exception as e:
+            logger.warning("Falha ao remover notebook órfão %s: %s", nb.id, e)
 
 
 async def _process_async(text: str, prompt: str) -> str:
@@ -173,7 +205,7 @@ async def _process_async(text: str, prompt: str) -> str:
     if not storage_path.exists():
         raise NotebookLMError(
             f"Arquivo de autenticação não encontrado: {storage_path}. "
-            "Execute 'notebooklm login' no terminal para autenticar."
+            "Autentique no terminal: notebooklm login"
         )
 
     if storage_path.is_dir():
@@ -183,9 +215,11 @@ async def _process_async(text: str, prompt: str) -> str:
 
     logger.info("Conectando ao NotebookLM...")
     async with NotebookLMClient.from_storage(path=str(storage_path)) as client:
+        # Limpa órfãos de execuções anteriores antes de criar o novo temporário.
+        await _sweep_orphan_notebooks(client)
         logger.info("Criando notebook temporário...")
         notebook = await asyncio.wait_for(
-            client.notebooks.create(title="Kairos — processamento temporário"),
+            client.notebooks.create(title=_TEMP_NOTEBOOK_TITLE),
             timeout=30.0,
         )
 

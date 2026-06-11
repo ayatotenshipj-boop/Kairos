@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kairos — Protótipo v2</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+
+[data-theme="dark"]{
+  --bg-base:#0c0c0e;--bg-surface:#141418;--bg-elevated:#1c1c21;
+  --border:#26262c;--border-strong:#34343c;
+  --text-1:#ece9e3;--text-2:#8c8c94;--text-3:#56565d;
+  --accent:#f2a03d;--accent-hover:#f7b35e;--accent-dim:rgba(242,160,61,.12);--accent-glow:rgba(242,160,61,.22);--on-accent:#0c0c0e;
+  --success:#4fd1a0;--success-dim:rgba(79,209,160,.12);
+  --error:#f06a5a;--error-dim:rgba(240,106,90,.12);
+  --warning:#f2c14e;--warning-dim:rgba(242,193,78,.12);
+}
+[data-theme="light"]{
+  --bg-base:#f4f1ea;--bg-surface:#fdfbf7;--bg-elevated:#ffffff;
+  --border:#e4ded2;--border-strong:#d0c8b8;
+  --text-1:#2a2823;--text-2:#6b6760;--text-3:#9b968c;
+  --accent:#cc7a14;--accent-hover:#b06709;--accent-dim:rgba(204,122,20,.10);--accent-glow:rgba(204,122,20,.18);--on-accent:#fffdf9;
+  --success:#1f9e72;--success-dim:rgba(31,158,114,.10);
+  --error:#d4503e;--error-dim:rgba(212,80,62,.10);
+  --warning:#b8870f;--warning-dim:rgba(184,135,15,.10);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'JetBrains Mono',monospace;background:var(--bg-base);color:var(--text-1);height:100vh;overflow:hidden;transition:background .4s,color .4s}
+.app{display:flex;height:100vh}
+
+/* SIDEBAR */
+.sidebar{width:280px;flex-shrink:0;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:24px 20px 16px;overflow-y:auto;transition:background .4s,border-color .4s}
+.wordmark{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.pulse-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent-glow);animation:heartbeat 3.2s ease-in-out infinite}
+.wordmark h1{font-size:18px;font-weight:800;letter-spacing:7px}
+.tagline{font-size:10.5px;color:var(--text-3);letter-spacing:1px;margin-bottom:22px;padding-left:19px}
+.connections{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:24px;transition:background .4s,border-color .4s}
+.conn-row{display:flex;align-items:center;justify-content:space-between;font-size:11px}
+.conn-row+.conn-row{margin-top:9px}
+.conn-label{color:var(--text-2);display:flex;align-items:center;gap:8px}
+.conn-label svg{width:14px;height:14px;opacity:.7}
+.conn-state{display:flex;align-items:center;gap:6px;color:var(--success);font-size:10px}
+.conn-state .dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
+.conn-bridge{text-align:center;font-size:9px;color:var(--text-3);letter-spacing:1px;margin:8px 0}
+.section-label{display:flex;align-items:center;justify-content:space-between;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:2.5px;color:var(--text-3);margin-bottom:12px}
+.add-prompt{background:none;border:none;color:var(--accent);cursor:pointer;font-family:inherit;font-size:9.5px;letter-spacing:1px;display:flex;align-items:center;gap:4px;padding:0}
+.add-prompt:hover{color:var(--accent-hover)}
+.add-prompt svg{width:12px;height:12px}
+.prompts{margin-bottom:24px}
+.prompt-item{display:flex;align-items:flex-start;gap:11px;padding:11px 12px;border-radius:9px;border:1px solid transparent;cursor:pointer;margin-bottom:4px;position:relative;transition:background .18s,border-color .18s}
+.prompt-item:hover{background:var(--bg-elevated)}
+.prompt-item.active{background:var(--accent-dim);border-color:var(--accent)}
+.prompt-radio{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--text-3);flex-shrink:0;margin-top:2px;position:relative;transition:border-color .18s}
+.prompt-item.active .prompt-radio{border-color:var(--accent)}
+.prompt-item.active .prompt-radio::after{content:'';position:absolute;inset:2.5px;border-radius:50%;background:var(--accent)}
+.prompt-text{flex:1;min-width:0}
+.prompt-text .name{font-size:12px;font-weight:500}
+.prompt-text .desc{font-size:10px;color:var(--text-3);margin-top:2px;line-height:1.4}
+.edit-btn{opacity:0;background:none;border:none;color:var(--text-3);cursor:pointer;padding:2px;flex-shrink:0;transition:opacity .18s,color .18s}
+.prompt-item:hover .edit-btn{opacity:1}
+.edit-btn:hover{color:var(--accent)}
+.edit-btn svg{width:13px;height:13px}
+.log{margin-bottom:auto}
+.log-entry{display:flex;align-items:center;gap:9px;padding:7px 4px;font-size:11px;color:var(--text-2)}
+.log-entry .title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-footer{border-top:1px solid var(--border);padding-top:14px;margin-top:14px;transition:border-color .4s}
+.player{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:9px;margin-bottom:10px;transition:background .4s,border-color .4s}
+.player-btn{width:28px;height:28px;border-radius:7px;border:none;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .18s}
+.player-btn:hover{background:var(--accent);color:var(--on-accent)}
+.player-info{flex:1;min-width:0}
+.player-track{font-size:10.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player-sub{font-size:9px;color:var(--text-3)}
+.player-vol{width:40px;height:3px;background:var(--border-strong);border-radius:2px;position:relative}
+.player-vol::after{content:'';position:absolute;left:0;top:0;bottom:0;width:60%;background:var(--text-3);border-radius:2px}
+.footer-row{display:flex;gap:8px}
+.icon-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-2);font-family:inherit;font-size:10.5px;cursor:pointer;transition:border-color .18s,color .18s}
+.icon-btn:hover{border-color:var(--border-strong);color:var(--text-1)}
+.icon-btn svg{width:14px;height:14px}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;padding:38px 44px;overflow-y:auto}
+.main-header{margin-bottom:30px}
+.main-header .question{font-size:24px;font-weight:700;letter-spacing:-.3px}
+.main-header .hint{font-size:12px;color:var(--text-3);margin-top:6px}
+.dropzone{border:2px dashed var(--border-strong);border-radius:16px;padding:44px 32px;text-align:center;cursor:pointer;background:var(--bg-surface);transition:border-color .3s,background .3s,transform .2s;margin-bottom:28px;position:relative;overflow:hidden}
+.dropzone::before{content:'';position:absolute;inset:0;background:var(--accent-dim);opacity:0;transition:opacity .3s;pointer-events:none}
+.dropzone.idle{animation:breathe 4s ease-in-out infinite}
+.dropzone:hover{border-color:var(--accent)}
+.dropzone.dragover{border-color:var(--accent);border-style:solid;transform:scale(1.005);animation:none}
+.dropzone.dragover::before{opacity:1}
+.dropzone.accepted{border-style:solid;border-color:var(--accent);background:var(--accent-dim);animation:none}
+.dz-icon{width:52px;height:52px;margin:0 auto 16px;border-radius:14px;background:var(--bg-elevated);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--accent);transition:all .3s}
+.dropzone.accepted .dz-icon{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.dz-icon svg{width:24px;height:24px}
+.dz-title{font-size:15px;font-weight:600;margin-bottom:7px}
+.dz-sub{font-size:11.5px;color:var(--text-3);letter-spacing:.3px}
+.dz-types{display:inline-flex;gap:6px;margin-top:14px}
+.dz-type{font-size:9.5px;letter-spacing:.5px;padding:4px 10px;border-radius:20px;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-2)}
+.pipeline{background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;padding:26px 28px;margin-bottom:28px;transition:background .4s,border-color .4s}
+.pipeline-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
+.pipeline-head .label{font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:2.5px;color:var(--text-3)}
+.pipeline-head .elapsed{font-size:11px;color:var(--accent);font-variant-numeric:tabular-nums}
+.steps{display:flex;align-items:flex-start}
+.step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative}
+.step-node{width:38px;height:38px;border-radius:50%;border:2px solid var(--border-strong);background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;color:var(--text-3);z-index:2;transition:all .35s}
+.step-node svg{width:17px;height:17px}
+.step-line{position:absolute;top:18px;left:50%;width:100%;height:2px;background:var(--border-strong);z-index:1;transition:background .4s}
+.step:last-child .step-line{display:none}
+.step-line::after{content:'';position:absolute;inset:0;width:0;background:var(--accent);transition:width .6s}
+.step-label{font-size:11px;color:var(--text-3);margin-top:10px;font-weight:500;transition:color .35s}
+.step-sub{font-size:9px;color:var(--text-3);margin-top:2px;opacity:0;transition:opacity .3s;font-variant-numeric:tabular-nums}
+.step.active .step-node{border-color:var(--accent);color:var(--accent);animation:nodepulse 1.5s ease-in-out infinite}
+.step.active .step-label{color:var(--accent)}
+.step.active .step-sub{opacity:1;color:var(--accent)}
+.step.done .step-node{border-color:var(--success);background:var(--success);color:var(--on-accent)}
+.step.done .step-label{color:var(--text-2)}
+.step.done .step-line::after{width:100%}
+.action-row{display:flex;flex-direction:column;gap:14px;margin-bottom:28px}
+.process-btn{width:100%;padding:16px;border:none;border-radius:13px;background:var(--accent);color:var(--on-accent);font-family:inherit;font-size:13.5px;font-weight:700;letter-spacing:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background .2s,opacity .2s,transform .1s}
+.process-btn:hover:not(:disabled){background:var(--accent-hover)}
+.process-btn:active:not(:disabled){transform:scale(.99)}
+.process-btn:disabled{background:var(--bg-elevated);color:var(--text-3);border:1px solid var(--border);cursor:not-allowed}
+.process-btn svg{width:17px;height:17px}
+.spinner{animation:spin 1s linear infinite}
+.status{text-align:center;font-size:12px;min-height:18px;letter-spacing:.3px;transition:color .3s}
+.status.idle{color:var(--text-3)}.status.running{color:var(--accent)}.status.success{color:var(--success)}.status.error{color:var(--error)}.status.warning{color:var(--warning)}
+.status a{color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+
+/* BRAIN MAP */
+.brainmap{background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;padding:24px 28px 28px;margin-bottom:20px;display:none;transition:background .4s,border-color .4s}
+.brainmap.show{display:block;animation:revealUp .5s ease}
+.bm-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.bm-head .label{font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:2.5px;color:var(--text-3)}
+.bm-head .src{font-size:10px;color:var(--text-3);display:flex;align-items:center;gap:6px}
+.bm-head .src svg{width:12px;height:12px;opacity:.7}
+.bm-note{font-size:11px;color:var(--text-3);margin-bottom:4px}
+.bm-canvas{position:relative;height:440px;width:100%}
+.bm-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.bm-link{stroke:var(--border-strong);stroke-width:1.5;transition:stroke .25s;stroke-dasharray:300;stroke-dashoffset:300;animation:drawLine .7s ease forwards}
+.bm-link.hot{stroke:var(--accent)}
+.bm-node{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer;opacity:0;animation:popIn .4s ease forwards}
+.bm-dot{border-radius:50%;border:2px solid;transition:transform .2s,box-shadow .2s,background .2s}
+.bm-node.central .bm-dot{width:26px;height:26px;background:var(--accent);border-color:var(--accent);box-shadow:0 0 18px var(--accent-glow)}
+.bm-node.sub .bm-dot{width:15px;height:15px;background:var(--bg-elevated);border-color:var(--text-3)}
+.bm-node:hover .bm-dot{transform:scale(1.25)}
+.bm-node.sub:hover .bm-dot{background:var(--accent);border-color:var(--accent)}
+.bm-lbl{margin-top:9px;font-size:11px;white-space:nowrap;transition:color .2s}
+.bm-node.central .bm-lbl{font-weight:700;font-size:12.5px;color:var(--text-1)}
+.bm-node.sub .bm-lbl{color:var(--text-2)}
+.bm-node.sub:hover .bm-lbl{color:var(--accent)}
+.bm-tag{margin-top:3px;font-size:8.5px;letter-spacing:.5px;color:var(--text-3)}
+.bm-node.central .bm-tag{color:var(--accent)}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.overlay.show{display:flex;animation:fadeIn .2s ease}
+.modal{background:var(--bg-surface);border:1px solid var(--border-strong);border-radius:16px;width:100%;max-width:540px;max-height:88vh;overflow-y:auto;padding:26px;animation:revealUp .3s ease}
+.modal h2{font-size:16px;font-weight:700;margin-bottom:4px}
+.modal .msub{font-size:11px;color:var(--text-3);margin-bottom:22px}
+.field{margin-bottom:18px}
+.field label{display:block;font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:var(--text-3);margin-bottom:8px}
+.field input,.field textarea{width:100%;background:var(--bg-elevated);border:1px solid var(--border);border-radius:9px;padding:11px 13px;color:var(--text-1);font-family:inherit;font-size:12.5px;transition:border-color .18s}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:96px;line-height:1.6}
+.injected{background:var(--accent-dim);border:1px solid var(--accent);border-radius:9px;padding:12px 14px;margin-bottom:22px}
+.injected .ititle{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:7px}
+.injected .ititle svg{width:13px;height:13px}
+.injected .itext{font-size:11.5px;color:var(--text-2);line-height:1.5}
+.modal-btns{display:flex;gap:10px;justify-content:flex-end}
+.btn{padding:11px 20px;border-radius:10px;font-family:inherit;font-size:12px;font-weight:600;letter-spacing:.5px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-2);transition:border-color .18s,color .18s}
+.btn:hover{border-color:var(--border-strong);color:var(--text-1)}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.btn.primary:hover{background:var(--accent-hover)}
+
+/* misc */
+.theme-toggle{position:fixed;top:20px;right:24px;width:40px;height:40px;border-radius:11px;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-2);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:60;transition:border-color .18s,color .18s,background .4s}
+.theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.theme-toggle svg{width:18px;height:18px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg-elevated);border:1px solid var(--accent);border-radius:10px;padding:12px 18px;font-size:12px;color:var(--text-1);z-index:80;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;display:flex;align-items:center;gap:9px}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast svg{width:15px;height:15px;color:var(--accent)}
+.demo-hint{position:fixed;bottom:18px;right:24px;font-size:10px;color:var(--text-3);background:var(--bg-elevated);border:1px solid var(--border);padding:7px 12px;border-radius:8px;z-index:60;letter-spacing:.5px}
+
+@keyframes heartbeat{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.25);opacity:.7}}
+@keyframes breathe{0%,100%{border-color:var(--border-strong)}50%{border-color:var(--accent-dim)}}
+@keyframes nodepulse{0%,100%{box-shadow:0 0 0 4px var(--accent-dim)}50%{box-shadow:0 0 0 7px var(--accent-dim)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes revealUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes drawLine{to{stroke-dashoffset:0}}
+@keyframes popIn{from{opacity:0;transform:translate(-50%,-50%) scale(.4)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.reveal{animation:revealUp .5s ease backwards}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.bm-link{stroke-dashoffset:0}.bm-node{opacity:1}}
+</style>
+</head>
+<body>
+<button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
+  <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></svg>
+</button>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="wordmark reveal"><span class="pulse-dot"></span><h1>KAIROS</h1></div>
+    <div class="tagline reveal">o momento de aprender</div>
+
+    <div class="connections reveal">
+      <div class="conn-row"><span class="conn-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>NotebookLM</span><span class="conn-state"><span class="dot"></span>pesquisa</span></div>
+      <div class="conn-bridge">↑ síntese ↓</div>
+      <div class="conn-row"><span class="conn-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M9 9h6v6H9z"/></svg>Obsidian</span><span class="conn-state"><span class="dot"></span>memória</span></div>
+    </div>
+
+    <div class="prompts reveal">
+      <div class="section-label">Como aprender
+        <button class="add-prompt" onclick="openModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Novo</button>
+      </div>
+      <div id="promptList"></div>
+    </div>
+
+    <div class="log reveal">
+      <div class="section-label">Sessões recentes</div>
+      <div class="log-entry"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg><span class="title">O que é IP</span></div>
+      <div class="log-entry"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg><span class="title">Redes Neurais (YouTube)</span></div>
+      <div class="log-entry"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2.5"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span class="title">História — Roma (local)</span></div>
+    </div>
+
+    <div class="sidebar-footer reveal">
+      <div class="player">
+        <button class="player-btn" id="playBtn" onclick="togglePlay(this)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+        <div class="player-info"><div class="player-track">lofi study beats</div><div class="player-sub">Simpmusic</div></div>
+        <div class="player-vol"></div>
+      </div>
+      <div class="footer-row">
+        <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Config</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="main-header reveal">
+      <div class="question">O que você quer aprender?</div>
+      <div class="hint">Solte um material e o Kairos cuida do resto.</div>
+    </div>
+
+    <div class="dropzone idle reveal" id="dropzone" onclick="simulateLoad()" ondragover="dragOver(event)" ondragleave="dragLeave()" ondrop="drop(event)">
+      <div class="dz-icon" id="dzIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg></div>
+      <div class="dz-title" id="dzTitle">Solte um arquivo aqui</div>
+      <div class="dz-sub" id="dzSub">ou clique para procurar</div>
+      <div class="dz-types" id="dzTypes"><span class="dz-type">PDF</span><span class="dz-type">YOUTUBE</span><span class="dz-type">ÁUDIO</span></div>
+    </div>
+
+    <div class="pipeline reveal">
+      <div class="pipeline-head"><span class="label">Pipeline</span><span class="elapsed" id="elapsed"></span></div>
+      <div class="steps" id="steps">
+        <div class="step"><div class="step-node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><div class="step-line"></div><div class="step-label">Extração</div><div class="step-sub">texto</div></div>
+        <div class="step"><div class="step-node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div class="step-line"></div><div class="step-label">NotebookLM</div><div class="step-sub">pesquisa</div></div>
+        <div class="step"><div class="step-node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg></div><div class="step-line"></div><div class="step-label">Síntese</div><div class="step-sub">nota</div></div>
+        <div class="step"><div class="step-node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M9 9h6v6H9z"/></svg></div><div class="step-label">Obsidian</div><div class="step-sub">memória</div></div>
+      </div>
+    </div>
+
+    <div class="action-row reveal">
+      <button class="process-btn" id="processBtn" disabled onclick="runPipeline()">
+        <svg id="btnIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
+        <span id="btnText">PROCESSAR</span>
+      </button>
+      <div class="status idle" id="status">Solte um material para começar</div>
+    </div>
+
+    <!-- BRAIN MAP -->
+    <div class="brainmap" id="brainmap">
+      <div class="bm-head">
+        <span class="label">Mapa de conhecimento</span>
+        <span class="src"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M9 9h6v6H9z"/></svg>do seu vault Obsidian</span>
+      </div>
+      <div class="bm-note" id="bmNote"></div>
+      <div class="bm-canvas" id="bmCanvas">
+        <svg class="bm-svg" id="bmSvg"></svg>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- PROMPT MODAL -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="modalTitle">Novo prompt</h2>
+    <div class="msub">Defina como o NotebookLM deve abordar o conteúdo.</div>
+    <div class="field"><label>Nome</label><input id="fName" placeholder="Ex: Explique como criança"></div>
+    <div class="field"><label>Descrição</label><input id="fDesc" placeholder="Uma linha sobre o objetivo pedagógico"></div>
+    <div class="field"><label>Instrução enviada ao NotebookLM</label><textarea id="fText" placeholder="O prompt completo que guia a geração..."></textarea></div>
+    <div class="injected">
+      <div class="ititle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Sempre adicionado automaticamente</div>
+      <div class="itext">"Estruture o conteúdo como um tema principal com sub-temas conectados. No Obsidian: o tema vira uma pasta, cada sub-tema uma nota linkada de volta ao tema central."</div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn primary" onclick="savePrompt()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M9 9h6v6H9z"/></svg><span id="toastText"></span></div>
+<div class="demo-hint">protótipo — carregue, processe, e veja o mapa surgir</div>
+
+<script>
+/* ---------- prompts data ---------- */
+let prompts=[
+  {name:'Explique como criança',desc:'Simplifica ao máximo, sem jargão',text:'Explique este conteúdo como se eu tivesse 10 anos. Use analogias do cotidiano, evite jargão técnico, e quando um termo difícil for inevitável, explique-o com palavras simples.'},
+  {name:'Entenda profundamente',desc:'Causas, consequências e contexto',text:'Explique este conteúdo em profundidade. Cubra causas, consequências, contexto histórico e as relações entre os conceitos principais.',active:true},
+  {name:'Aprenda na prática',desc:'Exemplos e aplicações reais',text:'Foque em aplicação prática. Traga exemplos reais, exercícios e casos de uso concretos para fixar o aprendizado.'},
+  {name:'Conecte conceitos',desc:'Relaciona com o que você já sabe',text:'Conecte este conteúdo com conceitos relacionados. Mostre como ele se encaixa em um quadro maior de conhecimento.'}
+];
+let editIndex=null;
+
+function renderPrompts(){
+  const list=document.getElementById('promptList');
+  list.innerHTML='';
+  prompts.forEach((p,i)=>{
+    const div=document.createElement('div');
+    div.className='prompt-item'+(p.active?' active':'');
+    div.onclick=(e)=>{ if(e.target.closest('.edit-btn'))return; selectPrompt(i); };
+    div.innerHTML=`<div class="prompt-radio"></div>
+      <div class="prompt-text"><div class="name">${p.name}</div><div class="desc">${p.desc}</div></div>
+      <button class="edit-btn" onclick="openModal(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>`;
+    list.appendChild(div);
+  });
+}
+function selectPrompt(i){ prompts.forEach((p,j)=>p.active=j===i); renderPrompts(); }
+
+function openModal(i){
+  editIndex = (typeof i==='number')?i:null;
+  document.getElementById('modalTitle').textContent = editIndex!==null?'Editar prompt':'Novo prompt';
+  document.getElementById('fName').value = editIndex!==null?prompts[i].name:'';
+  document.getElementById('fDesc').value = editIndex!==null?prompts[i].desc:'';
+  document.getElementById('fText').value = editIndex!==null?prompts[i].text:'';
+  document.getElementById('overlay').classList.add('show');
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+function savePrompt(){
+  const name=document.getElementById('fName').value.trim();
+  const desc=document.getElementById('fDesc').value.trim();
+  const text=document.getElementById('fText').value.trim();
+  if(!name||!text){return;}
+  if(editIndex!==null){ prompts[editIndex]={...prompts[editIndex],name,desc,text}; }
+  else{ prompts.push({name,desc,text}); }
+  renderPrompts(); closeModal();
+}
+document.getElementById('overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeModal();});
+
+/* ---------- theme / player ---------- */
+function toggleTheme(){
+  const h=document.documentElement, n=h.getAttribute('data-theme')==='dark'?'light':'dark';
+  h.setAttribute('data-theme',n);
+  document.getElementById('themeIcon').innerHTML = n==='dark'
+    ?'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/>'
+    :'<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>';
+}
+function togglePlay(b){
+  const p=b.dataset.playing==='1'; b.dataset.playing=p?'0':'1';
+  b.innerHTML=p?'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>':'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
+}
+
+/* ---------- dropzone ---------- */
+let loaded=false,running=false;
+function dragOver(e){e.preventDefault();if(running)return;const d=document.getElementById('dropzone');d.classList.add('dragover');d.classList.remove('idle');}
+function dragLeave(){const d=document.getElementById('dropzone');d.classList.remove('dragover');if(!loaded)d.classList.add('idle');}
+function drop(e){e.preventDefault();document.getElementById('dropzone').classList.remove('dragover');acceptFile('Material arrastado.pdf');}
+function simulateLoad(){if(running)return;acceptFile('Fundamentos de Redes.pdf');}
+function acceptFile(name){
+  loaded=true;
+  const d=document.getElementById('dropzone');
+  d.classList.remove('idle');d.classList.add('accepted');
+  document.getElementById('dzIcon').innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>';
+  document.getElementById('dzTitle').textContent=name;
+  document.getElementById('dzSub').textContent='pronto para processar';
+  document.getElementById('dzTypes').style.display='none';
+  document.getElementById('processBtn').disabled=false;
+  const s=document.getElementById('status');s.className='status idle';s.textContent='Pronto. Clique em processar.';
+  document.getElementById('brainmap').classList.remove('show');
+}
+
+/* ---------- pipeline ---------- */
+const msgs=['Extraindo conteúdo...','Conectando ao NotebookLM...','Sintetizando tema e sub-temas...','Salvando no Obsidian...'];
+async function runPipeline(){
+  if(!loaded||running)return;
+  running=true;
+  const btn=document.getElementById('processBtn'),st=document.getElementById('status');
+  btn.disabled=true;
+  document.getElementById('btnIcon').outerHTML='<svg id="btnIcon" class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>';
+  document.getElementById('btnText').textContent='PROCESSANDO';
+  document.getElementById('brainmap').classList.remove('show');
+  const steps=[...document.querySelectorAll('.step')];
+  steps.forEach(s=>{s.className='step';});
+  const reduced=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  let total=0;const el=document.getElementById('elapsed');
+  for(let i=0;i<4;i++){
+    steps[i].classList.add('active');
+    st.className='status running';st.textContent=msgs[i];
+    const dur=reduced?200:1300,start=Date.now();
+    await new Promise(res=>{const t=setInterval(()=>{const sec=((Date.now()-start)/1000).toFixed(1);steps[i].querySelector('.step-sub').textContent=sec+'s';el.textContent=(total/1000+(Date.now()-start)/1000).toFixed(1)+'s';},100);setTimeout(()=>{clearInterval(t);res();},dur);});
+    total+=dur;steps[i].classList.remove('active');steps[i].classList.add('done');steps[i].querySelector('.step-sub').textContent='ok';
+  }
+  st.className='status success';
+  st.innerHTML='✓ Tema estruturado e salvo no Obsidian';
+  document.getElementById('btnIcon').outerHTML='<svg id="btnIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>';
+  document.getElementById('btnText').textContent='PROCESSAR';
+  running=false;btn.disabled=false;
+  renderMap();
+}
+
+/* ---------- brain map ---------- */
+const graph={central:'O que é IP',nodes:['IP público','IP privado','NAT','Camada OSI','Internet']};
+function renderMap(){
+  const bm=document.getElementById('brainmap'),canvas=document.getElementById('bmCanvas'),svg=document.getElementById('bmSvg');
+  canvas.querySelectorAll('.bm-node').forEach(n=>n.remove());
+  svg.innerHTML='';
+  bm.classList.add('show');
+  document.getElementById('bmNote').textContent=`📁 ${graph.central}/  ·  ${graph.nodes.length+1} notas linkadas`;
+  const cx=50,cy=50,R=34;
+  // central node
+  addNode(canvas,cx,cy,graph.central,'central','tema · pasta',0);
+  // sub nodes + links
+  graph.nodes.forEach((name,i)=>{
+    const ang=(2*Math.PI/graph.nodes.length)*i - Math.PI/2;
+    const x=cx+R*Math.cos(ang), y=cy+R*Math.sin(ang)*0.92;
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',cx+'%');line.setAttribute('y1',cy+'%');
+    line.setAttribute('x2',x+'%');line.setAttribute('y2',y+'%');
+    line.setAttribute('class','bm-link');
+    line.style.animationDelay=(0.15+i*0.06)+'s';
+    svg.appendChild(line);
+    addNode(canvas,x,y,name,'sub','nota',0.25+i*0.07,line);
+  });
+}
+function addNode(canvas,x,y,label,cls,tag,delay,line){
+  const n=document.createElement('div');
+  n.className='bm-node '+cls;
+  n.style.left=x+'%';n.style.top=y+'%';n.style.animationDelay=delay+'s';
+  n.innerHTML=`<div class="bm-dot"></div><div class="bm-lbl">${label}</div><div class="bm-tag">${tag}</div>`;
+  if(cls==='sub'){
+    n.onmouseenter=()=>line&&line.classList.add('hot');
+    n.onmouseleave=()=>line&&line.classList.remove('hot');
+    n.onclick=()=>openInObsidian(label);
+  }else{
+    n.onclick=()=>openInObsidian(label);
+  }
+  canvas.appendChild(n);
+}
+let toastTimer;
+function openInObsidian(name){
+  const t=document.getElementById('toast');
+  document.getElementById('toastText').textContent=`Abrindo "${name}.md" no Obsidian...`;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+renderPrompts();
+</script>
+</body>
+</html>

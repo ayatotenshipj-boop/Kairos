@@ -1,42 +1,34 @@
+# Instrução fixa de estrutura, concatenada a TODO prompt antes de ir ao backend.
+# NÃO é editável pelo usuário — é parte da arquitetura (alimenta o mapa de
+# conhecimento da Fase 4). Fonte única da verdade: importada pelo processor
+# (injeção) e exposta pelo backend (exibição read-only no editor de prompt).
+STRUCTURE_INSTRUCTION = (
+    "Formate a resposta EXATAMENTE assim, em Markdown:\n"
+    "- A primeira linha é o tema principal como título nível 1: # <Tema>.\n"
+    "- Em seguida, no mínimo 5 sub-temas, cada um como título nível 2 "
+    "(## <Sub-tema>) seguido de 1 a 2 parágrafos que o expliquem.\n"
+    "- Não escreva nada fora desse esquema (sem introdução nem conclusão soltas).\n"
+    "No Obsidian, o tema vira uma pasta e cada sub-tema uma nota linkada de "
+    "volta ao tema central."
+)
+
 DEFAULT_CONFIG = {
     "obsidian_vault_path": "",
-    "kairos_folder": "kairos",
+    "kairos_folder": "Kairos",
     "log_filename": "study-log.md",
     "simpmusic_path": "",
     "simpmusic_autostart": True,
+    "music_playlist_url": "",
     "reduce_motion": False,
+    "dark_mode": True,
+    "discord_presence": False,
+    "discord_client_id": "",
     "notebooklm_home": "~/.notebooklm",
     "whisper_model": "small",
+    "transcript_max_chars": 30000,
+    "processor_max_chars": 30000,
     "processor_backend": "notebooklm",
     "gemini_api_key": "",
     "gemini_model": "gemini-flash-latest",
-    "ollama_host": "http://localhost:11434",
-    "ollama_model": "llama3.1:8b",
-    "prompts": [
-        {
-            "id": "beginner",
-            "label": "Explique como iniciante",
-            "text": "Explique esse conteúdo como se eu nunca tivesse visto esse assunto antes. Use exemplos práticos e evite jargão."
-        },
-        {
-            "id": "concepts",
-            "label": "Conceitos-chave",
-            "text": "Quais são os conceitos-chave desse material? Liste e explique cada um brevemente."
-        },
-        {
-            "id": "review",
-            "label": "Perguntas de revisão",
-            "text": "Crie 5 perguntas de revisão sobre esse conteúdo, do mais básico ao mais avançado."
-        },
-        {
-            "id": "practical",
-            "label": "Só o prático",
-            "text": "Resuma apenas os pontos práticos e aplicáveis desse conteúdo. Ignore teoria pura e definições abstratas."
-        },
-        {
-            "id": "cybersec",
-            "label": "Aplicação em cibersegurança",
-            "text": "Como esse conteúdo se aplica em cibersegurança? Quais são os casos de uso práticos, ferramentas relacionadas e possíveis vetores de ataque ou defesa?"
-        }
-    ]
+    "local_endpoint": "http://localhost:11434",
 }
