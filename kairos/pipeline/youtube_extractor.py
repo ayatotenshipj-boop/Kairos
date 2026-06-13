@@ -1,5 +1,6 @@
 import logging
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -75,8 +76,13 @@ def _get_whisper_model():
 
 def _download_audio(url: str, dest_dir: Path) -> Path:
     out_template = str(dest_dir / '%(id)s.%(ext)s')
+    ytdlp = shutil.which("yt-dlp") or shutil.which("yt_dlp")
+    if not ytdlp:
+        raise RuntimeError(
+            "yt-dlp não encontrado no PATH — instale com: pip install yt-dlp"
+        )
     cmd = [
-        'yt-dlp',
+        ytdlp,
         '-f', 'bestaudio',
         '-x', '--audio-format', 'mp3',
         '--no-playlist',

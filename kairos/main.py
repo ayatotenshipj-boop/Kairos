@@ -88,10 +88,15 @@ def main():
     # tamanhos para o Qt escolher o melhor por contexto.
     _icon = QIcon()
     _images = Path(__file__).parent / "images"
-    for _size in (16, 24, 32, 48, 64, 128, 256, 512):
-        _png = _images / f"kairos_linux_{_size}x{_size}.png"
-        if _png.is_file():
-            _icon.addFile(str(_png))
+    if sys.platform == "win32":
+        _ico = _images / "kairos_windows.ico"
+        if _ico.is_file():
+            _icon = QIcon(str(_ico))
+    else:
+        for _size in (16, 24, 32, 48, 64, 128, 256, 512):
+            _png = _images / f"kairos_linux_{_size}x{_size}.png"
+            if _png.is_file():
+                _icon.addFile(str(_png))
     if not _icon.isNull():
         app.setWindowIcon(_icon)
     dark_mode = bool(cfg.load().get("dark_mode", True))

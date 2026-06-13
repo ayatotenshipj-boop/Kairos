@@ -41,6 +41,7 @@ python -m nuitka \
     --include-data-files=kairos/config/prompts.json=kairos/config/prompts.json \
     --linux-onefile-icon=kairos/images/kairos_linux_256x256.png \
     --follow-imports \
+    --include-package=kairos.platform \
     --include-package=pymupdf \
     --include-package=pymupdf4llm \
     --include-package=notebooklm \

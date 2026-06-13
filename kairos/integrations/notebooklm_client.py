@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import multiprocessing
+import os
 import shutil
 import subprocess
 import sys
@@ -190,16 +191,26 @@ async def _sweep_orphan_notebooks(client) -> None:
 
 async def _process_async(text: str, prompt: str) -> str:
     """Implementação assíncrona do processamento."""
+    from notebooklm.paths import get_storage_path
     config = cfg.load()
-    notebooklm_home = Path(config.get("notebooklm_home", "~/.notebooklm")).expanduser()
+    override = (config.get("notebooklm_home", "") or "").strip()
 
-    # NotebookLMClient.from_storage espera caminho para storage_state.json, não diretório
-    if notebooklm_home.is_dir():
-        # Usa estrutura padrão: ~/.notebooklm/profiles/default/storage_state.json
-        storage_path = notebooklm_home / "profiles" / "default" / "storage_state.json"
+    # NotebookLMClient.from_storage espera caminho para storage_state.json, não diretório.
+    if override:
+        # Override explícito do usuário. Arquivo → usa direto; diretório → aponta
+        # NOTEBOOKLM_HOME para a própria notebooklm-py resolver o storage_state.json
+        # (mesma lógica da CLI, idêntica em Linux/Windows/macOS).
+        home = Path(override).expanduser()
+        if home.is_file():
+            storage_path = home
+        else:
+            os.environ["NOTEBOOKLM_HOME"] = str(home)
+            storage_path = get_storage_path()
     else:
-        # Se for arquivo, usa diretamente
-        storage_path = notebooklm_home
+        # Sem override: caminho canônico da notebooklm-py — alinha com onde
+        # `notebooklm login` grava a sessão e evita divergência ~/.notebooklm vs
+        # %APPDATA% no Windows (a lib usa ~/.notebooklm em todos os SOs).
+        storage_path = get_storage_path()
 
     # Valida que o arquivo existe
     if not storage_path.exists():

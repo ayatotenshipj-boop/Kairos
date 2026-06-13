@@ -188,3 +188,57 @@ windowrulev2 = float, class:^(com-maxrave-simpmusic-MainKt)$
 * Mensagens ao usuário em PT-BR.
 * Nenhuma regra deste documento violada.
 * Alteração atende exatamente ao solicitado, sem regressão.
+
+---
+
+## Multi-SO
+
+> Kairos hoje é **Linux-first**. O objetivo de longo prazo é rodar em **Linux,
+> Windows e macOS**. Esta seção fixa as regras que todo código novo deve seguir
+> para não aprofundar o acoplamento ao Linux. Detalhamento técnico:
+> `ARCHITECTURE.md`, `PLATFORM_MATRIX.md`, `DECISIONS.md`.
+
+### Ambiente-alvo (ampliado)
+
+```text
+Linux:    CachyOS / Arch, Hyprland  (plataforma primária, única testada)
+Windows:  10 / 11                    (alvo — indefinido/não testado)
+macOS:    13+ (Ventura ou superior)  (alvo — indefinido/não testado)
+```
+
+### Regras invioláveis cross-platform
+
+* `pathlib.Path` para todo caminho — `os.path` proibido (já é regra; reforçada
+  aqui pelo motivo Multi-SO: separadores e raízes divergem entre SOs).
+* Nenhum caminho hardcoded de raiz de SO (`~/.config`, `%APPDATA%`,
+  `~/Library/...`). Resolver via camada de config (futuro `ConfigPathBackend`).
+* **Nenhum código novo chama binário externo de desktop direto.** `notify-send`,
+  `playerctl`, `pactl`, `hyprctl`, `gdbus` são Linux-only e hoje vivem em
+  `integrations/`. Código novo que precise notificar/controlar mídia passa por
+  uma interface de backend (ver `ARCHITECTURE.md` §10), nunca por `subprocess`
+  direto no caminho de chamada.
+* Todo `subprocess` que invoca um executável deve resolvê-lo via
+  `shutil.which(...)` e degradar para no-op se ausente — padrão já usado em
+  `notifier.py`, `music_mpris.py`, `launcher.py`. **Exceção a corrigir:**
+  `pipeline/youtube_extractor.py:79` usa a string literal `'yt-dlp'` sem
+  `shutil.which` → `FileNotFoundError` em SO sem yt-dlp no PATH.
+
+### Política de abstração
+
+* Integrações específicas de SO ficam isoladas em `integrations/`, atrás de uma
+  interface comum, com seleção de implementação por plataforma
+  (`sys.platform`). Linux = implementação atual; Windows/macOS = stubs no-op até
+  serem portados.
+* Backends de SO a introduzir (interface documentada em `ARCHITECTURE.md` §10):
+  `NotificationBackend`, `MusicBackend`, `MusicLauncherBackend`,
+  `ConfigPathBackend`, `BuildBackend`.
+
+### Build por plataforma
+
+* Linux: `build.sh` (Nuitka 4.1.2, `--onefile`, `--linux-onefile-icon`).
+* Windows: futuro `build-windows.ps1` (ícone `.ico` já existe —
+  `kairos/images/kairos_windows.ico`; falta `--windows-icon-from-ico`).
+* macOS: futuro `build-macos.sh` (`--macos-create-app-bundle`; falta asset
+  `.icns` — hoje inexistente).
+* `systemd/` (keepalive NotebookLM) é Linux-only; Windows usaria Task Scheduler
+  e macOS `launchd` — ainda indefinido.

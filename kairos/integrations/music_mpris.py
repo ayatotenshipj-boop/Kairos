@@ -105,6 +105,9 @@ def snapshot() -> dict:
     playerctl, ou MPRIS sem resposta → _EMPTY com available=False (sem exceção, sem
     travar). No máximo 2 invocações de subprocess.
     """
+    from kairos.platform.music import is_supported, empty_snapshot
+    if not is_supported():
+        return empty_snapshot()
     meta = _run("metadata", "--format", _FORMAT)
     if meta is None:
         return dict(_EMPTY)

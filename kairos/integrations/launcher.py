@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import threading
 from pathlib import Path
 
@@ -43,7 +44,9 @@ def _already_running() -> bool:
 def _setup_background_rules() -> None:
     """No Hyprland, registra windowrules para o SimpMusic (e a janela de capa,
     mesma classe) abrir num workspace especial silencioso — segundo plano, sem
-    dividir a tela. Best-effort: no-op fora do Hyprland ou sem hyprctl."""
+    dividir a tela. Best-effort: no-op fora do Linux/Hyprland ou sem hyprctl."""
+    if sys.platform != "linux":
+        return
     if not os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
         return
     exe = shutil.which("hyprctl")
@@ -67,6 +70,9 @@ def _setup_background_rules() -> None:
 
 def start() -> None:
     global _process
+    if sys.platform != "linux":
+        logger.info("Launcher do SimpMusic disponível apenas no Linux — ignorado")
+        return
     config = cfg.load()
 
     if not config.get("simpmusic_autostart", True):

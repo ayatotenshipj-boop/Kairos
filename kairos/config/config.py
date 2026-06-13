@@ -3,11 +3,12 @@ import logging
 from pathlib import Path
 
 from kairos.config.defaults import DEFAULT_CONFIG
+from kairos.platform.paths import config_dir
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_PATH = Path.home() / ".config" / "kairos" / "config.json"
-_PROMPTS_PATH = Path.home() / ".config" / "kairos" / "prompts.json"
+_CONFIG_PATH = config_dir() / "config.json"
+_PROMPTS_PATH = config_dir() / "prompts.json"
 # Template versionado, empacotado junto do código (read-only). Semeia a cópia
 # do usuário na 1ª execução.
 _PROMPTS_TEMPLATE = Path(__file__).parent / "prompts.json"

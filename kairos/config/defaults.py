@@ -23,7 +23,7 @@ DEFAULT_CONFIG = {
     "dark_mode": True,
     "discord_presence": False,
     "discord_client_id": "",
-    "notebooklm_home": "~/.notebooklm",
+    "notebooklm_home": "",   # resolvido em runtime por platform.paths
     "whisper_model": "small",
     "transcript_max_chars": 30000,
     "processor_max_chars": 30000,
