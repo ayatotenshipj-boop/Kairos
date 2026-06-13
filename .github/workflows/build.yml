@@ -1,0 +1,119 @@
+name: build
+
+# Build standalone multi-SO via Nuitka (reaproveita o build.sh, que detecta o SO).
+# Dispara em push de tag vX.Y.Z (gera release) ou manualmente (só artifacts).
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Permissão mínima por padrão; o job de release eleva para contents:write.
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  # Runs manuais/dispatch podem ser cancelados; runs de tag (que produzem
+  # release) sempre completam, p/ não gerar release parcial.
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: kairos-linux
+            outfile: dist/kairos
+          - os: windows-latest
+            artifact: kairos-windows
+            outfile: dist/kairos.exe
+          - os: macos-latest
+            artifact: kairos-macos
+            outfile: dist/Kairos-app.zip
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # Python 3.12: cobertura de wheels garantida p/ pymupdf, av, ctranslate2,
+      # onnxruntime, tokenizers e PySide6 (3.14 do dev ainda não tem wheels p/
+      # todas as C-ext — [A3]/[B1] do diagnóstico).
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      # [B2] Nuitka standalone no Linux exige patchelf (rpath das .so).
+      - name: Install patchelf (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y patchelf
+
+      # [B1] PySide6 não vem do pacman no runner → pip. Pins de CI em constraints.
+      - name: Create venv + install deps
+        shell: bash
+        run: |
+          python -m venv .venv
+          if [ -f .venv/bin/activate ]; then
+            source .venv/bin/activate
+          else
+            source .venv/Scripts/activate
+          fi
+          python -m pip install --upgrade pip
+          pip install -c .github/constraints.txt PySide6
+          pip install -c .github/constraints.txt -r requirements.txt
+          pip install -c .github/constraints.txt -r requirements-dev.txt
+
+      # build.sh é multi-SO (detecta uname). shell:bash → roda no git-bash do
+      # windows-latest [A4]. NUITKA_JOBS=1 + LOW_MEMORY p/ não estourar RAM no
+      # compile do pymupdf [A2].
+      - name: Build
+        shell: bash
+        env:
+          NUITKA_JOBS: '1'
+          NUITKA_LOW_MEMORY: '1'
+        run: ./build.sh
+
+      # .app tem symlinks (Frameworks) — zipar com -y preserva. upload-artifact
+      # quebraria symlinks se subisse o diretório cru.
+      - name: Package macOS .app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: cd dist && zip -r -y Kairos-app.zip Kairos.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.outfile }}
+          if-no-files-found: error
+
+  release:
+    name: release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # único job que escreve (cria o GitHub Release)
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: artifacts
+
+      # Checksums p/ o usuário verificar integridade do que baixa.
+      - name: Generate SHA256SUMS
+        run: |
+          cd artifacts
+          sha256sum */* > ../SHA256SUMS
+          cat ../SHA256SUMS
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Kairos ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            artifacts/*/* SHA256SUMS

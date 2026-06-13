@@ -57,7 +57,7 @@ urllib (Gemini/Ollama) · pypresence (Discord RPC).
 | --- | --- | --- |
 | `main.py` | Bootstrap QApplication, paleta, ícone, `multiprocessing.freeze_support()` | Ícone só `kairos_linux_*` (`main.py:91-94`) |
 | `ui/backend.py` | Ponte QObject UI↔pipeline; QFileDialog; abre Obsidian | Portável (Qt) |
-| `ui/workers.py` | `QThread`s: Extraction/Processor/Writer/Music/AuthCheck | Portável (Qt) |
+| `ui/workers.py` | `QThread`s: Extraction/Processor/Writer/Music/AuthCheck/UpdateCheck | Portável (Qt) |
 | `pipeline/ingestor.py` | Identifica e roteia a fonte | Portável |
 | `pipeline/pdf_extractor.py` | PDF → Markdown (pymupdf4llm) | Portável (lib) |
 | `pipeline/youtube_extractor.py` | Legenda ou áudio→Whisper; chama `yt-dlp` | ⚠️ `yt-dlp` literal (`:79`) |
@@ -72,6 +72,7 @@ urllib (Gemini/Ollama) · pypresence (Discord RPC).
 | `integrations/music_mpris.py` | Controle/leitura SimpMusic + volume | **Linux** playerctl/gdbus/pactl |
 | `integrations/launcher.py` | Lança SimpMusic; windowrules | **Linux** playerctl/hyprctl/Popen |
 | `integrations/discord_presence.py` | Discord Rich Presence (pypresence) | Portável |
+| `integrations/update_checker.py` | Consulta GitHub Releases (urllib); compara com `_version.__version__` | Portável (best-effort, nunca lança) |
 | `config/config.py` | Persistência config/prompts | **Linux** `~/.config` (`:9-10`) |
 
 ---
@@ -292,3 +293,37 @@ documentada — nenhum código é escrito.
   `build.sh:34-54`).
 * **Windows:** `--windows-icon-from-ico=kairos_windows.ico` — script ausente.
 * **macOS:** `--macos-create-app-bundle` + `.icns` ausente — script ausente.
+
+---
+
+## 11. Versionamento, atualização e CI (release pipeline)
+
+> Introduzido após o §9 (build por plataforma) para fechar o ciclo
+> dev → release multi-SO. Portável — sem acoplamento a SO.
+
+* **Fonte única de versão:** `kairos/_version.py` (`__version__ = "0.1.0"`).
+  Reexportado por `kairos/__init__.py`; consumido por `ui/backend.py` (property
+  `appVersion`, banner) e `integrations/update_checker.py` (comparação). Importam
+  de `kairos._version` direto (evita ciclo via `__init__`).
+* **Update checker** (`integrations/update_checker.py`): urllib puro, igual aos
+  clients Gemini/Ollama; consulta `releases/latest` da API pública do GitHub,
+  compara a tag (SemVer normalizado a 3 campos) com `__version__` e devolve um
+  dict best-effort (nunca levanta). `html_url` só é aceito se `http(s)://` —
+  schemes perigosos (`file:`, `smb:`) caem para a URL canônica da API.
+* **Fluxo UI:** `UpdateCheckWorker` (`ui/workers.py`, `QThread`) roda a consulta
+  fora do thread da GUI no startup; `backend.py` recebe o resultado, valida o
+  `sender`, desconecta o sinal e expõe `updateAvailable`/`updateVersion`/
+  `updateUrl`; `ui/qml/main.qml` mostra um banner com link para o release.
+* **CI multi-SO** (`.github/workflows/build.yml`): matrix
+  `ubuntu/windows/macos-latest`, Python 3.12 (wheels das C-ext), reaproveita o
+  `build.sh` (detecta o SO) via `shell: bash`; instala PySide6/patchelf no
+  runner (não há pacman); `--include-package` extra de `onnxruntime`/`tokenizers`
+  no build.sh; pins de CI em `.github/constraints.txt`. Em push de tag `vX.Y.Z`,
+  o job `release` (único com `contents: write`) publica os binários dos 3 SOs +
+  `SHA256SUMS`. Actions fixadas por SHA. Atualiza o §9: Windows/macOS deixam de
+  ser "script ausente" — são compilados pelo CI com o mesmo `build.sh`, embora
+  ainda **não testados em uso real**.
+* **Pendências (adiadas a pedido):** L5 — gate do release por contagem de
+  artifacts (se 1 SO falha com `fail-fast:false`, o release sai incompleto);
+  L6 — guard no CI garantindo tag `vX.Y.Z` == `__version__`. Ver
+  `PROJECT_STATE.md`.

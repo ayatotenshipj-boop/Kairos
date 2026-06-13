@@ -582,3 +582,32 @@ implementar quando houver janela, fora do escopo da revisão atual.
    Trocar os `open(_CONFIG_PATH, ...)` por `Path.read_text`/`write_text` para
    consistência com o resto do repo (cosmético; não é violação da regra de
    `os.path`).
+
+---
+
+## Release pipeline multi-SO (iniciativa pós-Fase 7) — ✅ concluída
+
+Trilho separado das 7 fases acima: versionar e distribuir binários para os 3
+SOs. Detalhamento técnico em `ARCHITECTURE.md` §11.
+
+- ✅ **Versionamento** — `kairos/_version.py` (`__version__ = "0.1.0"`), fonte
+  única reexportada por `__init__.py`; consumida por `backend.py` (`appVersion`)
+  e `update_checker.py`.
+- ✅ **CI multi-SO** — `.github/workflows/build.yml`: matrix ubuntu/windows/macos,
+  reaproveita o `build.sh` (multi-SO) via `shell:bash`; release em push de tag
+  `vX.Y.Z` com `SHA256SUMS`; pins em `.github/constraints.txt`; actions por SHA.
+- ✅ **Update checker** — `integrations/update_checker.py` + `UpdateCheckWorker`
+  (`workers.py`) + banner em `main.qml`; consulta GitHub Releases, best-effort.
+- ✅ **README** — seção "Instalação (binários de release)" por SO + tabela de
+  recursos Linux-only.
+- ✅ **Correções de revisão** — scheme allowlist (`html_url` só http(s)),
+  disconnect guard em `_on_update_check_finished`, dict de `_update_info`
+  uniforme (com `current`), comparação SemVer normalizada a 3 campos, `-c
+  constraints.txt` na instalação de dev no CI.
+
+**Pendências adiadas (a pedido):**
+
+- **L5** — gate do release por contagem de artifacts. `fail-fast:false`: se 1 SO
+  falha, a tag publica release sem aquela plataforma. Opcional: checar contagem.
+- **L6** — guard no CI garantindo tag `vX.Y.Z` == `kairos/_version.py`
+  (`appVersion` não fica stale). Opcional.

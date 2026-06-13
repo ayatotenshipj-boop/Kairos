@@ -1,0 +1,11 @@
+# Pins de CI (NÃO altera requirements.txt — regra de dev permanece).
+# Versões testadas localmente (Arch + pacman); travadas no CI para build
+# reprodutível com Nuitka 4.1.2 e wheels disponíveis em Python 3.12.
+# Ver FASE 0 [A3] / [B1] do plano de release multi-SO.
+PySide6==6.11.1
+faster-whisper==1.2.1
+av==17.1.0
+ctranslate2==4.8.0
+onnxruntime==1.26.0
+tokenizers==0.22.2
+numpy==1.26.4

@@ -28,6 +28,9 @@ Relacionados: `ARCHITECTURE.md`, `PLATFORM_MATRIX.md`, `DECISIONS.md`,
 | Notificação desktop | ✅ Linux | `notifier.py:16-29` |
 | Discord Rich Presence | ✅ | `discord_presence.py` (pypresence) |
 | Keepalive auth NotebookLM | ✅ Linux | `systemd/kairos-notebooklm.{service,timer}` |
+| Versionamento (fonte única) | ✅ | `kairos/_version.py` (`__version__ = "0.1.0"`) |
+| Verificação de atualização | ✅ | `integrations/update_checker.py` + `UpdateCheckWorker` + banner `main.qml` |
+| CI multi-SO + release on tag | ✅ | `.github/workflows/build.yml` (ubuntu/windows/macos) + `constraints.txt` |
 
 ---
 
@@ -71,6 +74,10 @@ Relacionados: `ARCHITECTURE.md`, `PLATFORM_MATRIX.md`, `DECISIONS.md`,
   (`yt_dlp`/`notebooklm_py`) — ver `ARCHITECTURE.md` §9 (nota).
 * `kairos_windows.ico` existe mas não é referenciado em lugar nenhum
   (`main.py` só carrega PNG Linux).
+* **Release pipeline — adiadas a pedido:** L5 — gate do release por contagem de
+  artifacts (`build.yml` usa `fail-fast:false`; se 1 SO falha, o release de tag
+  sai sem aquela plataforma). L6 — guard no CI assegurando tag `vX.Y.Z` ==
+  `kairos/_version.py`. Ambas pendentes — ver `ARCHITECTURE.md` §11.
 
 ---
 
@@ -116,7 +123,7 @@ Relacionados: `ARCHITECTURE.md`, `PLATFORM_MATRIX.md`, `DECISIONS.md`,
 | Config paths | ~85% | `ConfigPathBackend` (`platform/paths.py`): %APPDATA% (Win), ~/.config (Linux/Mac). Não testado fora do Linux |
 | Notificações | ~70% | `NotificationBackend` (`platform/notifications.py`): plyer/MessageBeep (Win), osascript (Mac), notify-send (Linux). Não testado fora do Linux |
 | Música | ~30% | Stub `is_supported()` — UI degrada sem player fora do Linux; sem paridade SMTC/MediaRemote |
-| Build | ~33% | Só Linux dos 3 alvos (sem mudança nesta fase) |
+| Build | ~70% | `build.sh` multi-SO + CI (GitHub Actions) compila Linux/Windows/macOS via `shell:bash`; Win/macOS ainda não testados em uso real |
 | Integrações de IA/Obsidian/Discord | ~95% | Já cross-platform |
 
 ---

@@ -22,7 +22,8 @@
 | NotebookLM home (~/.notebooklm) | ✅ | ✅ | ✅ | `expanduser` resolve | `config/defaults.py` + `notebooklm_client.py` | 26 / 194 | Nenhuma (portável) |
 | Keepalive auth NotebookLM | ✅ | ❌ | ❌ | systemd-only | `systemd/kairos-notebooklm.timer` | — | Task Scheduler (Win) / launchd (Mac) |
 | Script de execução (run) | ✅ | ❌ | ⚠️ | bash/nohup/sha256sum | `run.sh` | 1-32 | `run.ps1` (Win); bash ok no Mac mas `sha256sum`→`shasum` |
-| Script de build | ✅ | ❌ | ❌ | bash + flags Linux | `build.sh` | 34-54 | `build-windows.ps1` / `build-macos.sh` |
+| Script de build | ✅ | 🔲 | 🔲 | `build.sh` multi-SO (detecta `uname`); CI compila os 3 via `shell:bash` — Win/macOS não testados | `build.sh` + `.github/workflows/build.yml` | — | Testar binários Win/macOS em uso real |
+| Verificação de atualização (GitHub Releases) | ✅ | ✅ | ✅ | urllib best-effort; banner na UI | `integrations/update_checker.py` | — | Nenhuma (portável) |
 | Download YouTube (yt-dlp CLI) | ⚠️ | ⚠️ | ⚠️ | literal sem `which` | `pipeline/youtube_extractor.py` | 79 | `shutil.which('yt-dlp')` + degradação |
 | Extração PDF | ✅ | ✅ | ✅ | lib pymupdf4llm | `pipeline/pdf_extractor.py` | — | Nenhuma (portável) |
 | Transcrição Whisper | ✅ | ✅ | ✅ | lib faster-whisper | `pipeline/audio_extractor.py` / `youtube_extractor.py` | 66-73 | Nenhuma (portável) |
@@ -35,5 +36,5 @@
 | Seletor de arquivo (QFileDialog) | ✅ | ✅ | ✅ | Qt nativo | `ui/backend.py` | 475-481 | Nenhuma (portável) |
 | Abrir nota (obsidian:// URL) | ✅ | ✅ | ✅ | QDesktopServices | `ui/backend.py` | 484-504 | Nenhuma (portável) |
 
-> 25 funcionalidades cobertas (≥ 23 exigidas). 🔲 = não há evidência para
+> 26 funcionalidades cobertas (≥ 23 exigidas). 🔲 = não há evidência para
 > afirmar comportamento em Win/Mac sem teste real.

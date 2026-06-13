@@ -13,11 +13,13 @@ from kairos.pipeline.audio_extractor import AUDIO_SUFFIXES
 from kairos.pipeline.text_extractor import TEXT_SUFFIXES
 from kairos.pipeline.logger import log_session
 from kairos.util import format_duration as _fmt_duration
+from kairos._version import __version__
 from kairos.ui.workers import (
     AuthCheckWorker,
     ExtractionWorker,
     MusicWorker,
     ProcessorWorker,
+    UpdateCheckWorker,
     WriterWorker,
 )
 
@@ -38,6 +40,7 @@ class Backend(QObject):
     graphChanged         = Signal()
     musicChanged         = Signal()
     backendLabelChanged  = Signal()
+    updateInfoChanged    = Signal()
     settingsError        = Signal(str)
     settingsSaved        = Signal()
     # Falha que exige escolha do usuário: (título, descrição) em PT-BR.
@@ -75,6 +78,8 @@ class Backend(QObject):
         self._writer_worker: WriterWorker | None = None
         self._auth_worker: AuthCheckWorker | None = None
         self._music_worker: MusicWorker | None = None
+        self._update_info: dict = {"available": False, "version": "", "url": "", "current": __version__}
+        self._update_worker: UpdateCheckWorker | None = None
         self._load_prompts()
         # Verificação de sessão no startup, deferida para o event loop (não bloqueia).
         QTimer.singleShot(0, self._run_startup_auth_check)
@@ -82,6 +87,8 @@ class Backend(QObject):
         QTimer.singleShot(0, self._start_music_worker)
         # Discord Rich Presence (best-effort), deferido para fora do boot.
         QTimer.singleShot(0, lambda: self._update_presence("idle"))
+        # Verificação de atualização (best-effort), deferida para fora do boot.
+        QTimer.singleShot(0, self._run_startup_update_check)
 
     # ── Properties ────────────────────────────────────────────────────────
 
@@ -115,6 +122,23 @@ class Backend(QObject):
     def backendLabel(self) -> str:
         # Rótulo do backend configurado (NotebookLM / Gemini / Ollama).
         return self._backend_label
+
+    @Property(str, constant=True)
+    def appVersion(self) -> str:
+        # Versão empacotada (kairos.__version__); não muda em runtime.
+        return __version__
+
+    @Property(bool, notify=updateInfoChanged)
+    def updateAvailable(self) -> bool:
+        return self._update_info["available"]
+
+    @Property(str, notify=updateInfoChanged)
+    def updateVersion(self) -> str:
+        return self._update_info["version"]
+
+    @Property(str, notify=updateInfoChanged)
+    def updateUrl(self) -> str:
+        return self._update_info["url"]
 
     @Property(bool, notify=reduceMotionChanged)
     def reduceMotion(self) -> bool:
@@ -280,6 +304,33 @@ class Backend(QObject):
         if not ok and self._loaded_source is None:
             self._set_status(msg, "warning")
 
+    def _run_startup_update_check(self) -> None:
+        """Checa o último release em background (best-effort, não bloqueia)."""
+        self._update_worker = UpdateCheckWorker()
+        self._update_worker.finished.connect(self._on_update_check_finished)
+        self._update_worker.start()
+
+    def _on_update_check_finished(self, info: dict) -> None:
+        worker = self.sender()
+        if worker is not self._update_worker:
+            return
+        # try/except: se onAppClose já desconectou tudo (sem zerar a ref), um
+        # finished tardio passa o guard e re-desconectaria sinal já solto.
+        try:
+            self._update_worker.finished.disconnect(self._on_update_check_finished)
+        except (TypeError, RuntimeError):
+            pass
+        self._update_worker = None
+        if not info.get("available"):
+            return
+        self._update_info = {
+            "available": True,
+            "version": info.get("version", ""),
+            "url": info.get("url", ""),
+            "current": __version__,
+        }
+        self.updateInfoChanged.emit()
+
     # ── Public slots ───────────────────────────────────────────────────────
 
     @Slot(str)
@@ -368,6 +419,7 @@ class Backend(QObject):
             self._processor_worker,
             self._writer_worker,
             self._auth_worker,
+            self._update_worker,
         ):
             if worker is not None and worker.isRunning():
                 try:
@@ -502,6 +554,21 @@ class Backend(QObject):
         except (ValueError, OSError):
             url = QUrl.fromLocalFile(str(p))
         QDesktopServices.openUrl(url)
+
+    @Slot()
+    def openUpdatePage(self) -> None:
+        """Abre a página do release no navegador padrão."""
+        url = self._update_info.get("url", "")
+        if url:
+            QDesktopServices.openUrl(QUrl(url))
+
+    @Slot()
+    def dismissUpdate(self) -> None:
+        """Esconde o banner de atualização (apenas nesta sessão)."""
+        if not self._update_info["available"]:
+            return
+        self._update_info = {"available": False, "version": "", "url": "", "current": __version__}
+        self.updateInfoChanged.emit()
 
     # ── Controles de música (Simpmusic via MPRIS) ──────────────────────────
 

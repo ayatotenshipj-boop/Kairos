@@ -29,6 +29,11 @@ kairos.build/
 coverage/
 htmlcov/
 .pytest_cache/
+.ruff_cache/
+.benchmarks/
+
+# Nuitka crash reports
+nuitka-crash-report.xml
 
 # Security
 .secret

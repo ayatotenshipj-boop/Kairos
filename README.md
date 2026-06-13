@@ -256,9 +256,69 @@ Flags relevantes do build — imports lazy e data files que o `--follow-imports`
 --include-package=pymupdf --include-package=pymupdf4llm
 --include-package=notebooklm
 --include-package=faster_whisper --include-package=ctranslate2 --include-package=av
+--include-package=onnxruntime --include-package=tokenizers
 ```
 
 > O PyMuPDF importa como `pymupdf` (não `fitz`). O `yt-dlp` é chamado como CLI (subprocess), então **não** entra em `--include-package` — precisa estar no PATH do sistema. Nuitka fica travado em 4.1.2 (`requirements-dev.txt`).
+
+---
+
+## Instalação (binários de release)
+
+Cada tag `vX.Y.Z` publica binários nos três SOs em
+[**Releases**](https://github.com/ayatotenshipj-boop/Kairos/releases), com um
+arquivo `SHA256SUMS` para verificar integridade. O Kairos avisa dentro do app
+quando há versão nova (banner com link para o release).
+
+> **Plataforma testada:** Linux. Windows e macOS são compilados pelo CI, mas
+> ainda **não testados** em uso real — trate como beta.
+
+### Linux
+
+```bash
+chmod +x kairos
+./kairos
+```
+
+Binário `--onefile`. Requer `yt-dlp` no PATH apenas para baixar áudio de vídeos
+**sem legenda** (veja limitações abaixo).
+
+### Windows
+
+Baixe `kairos.exe` e execute (duplo clique). Por ser `--onefile`, o primeiro
+start é mais lento (extrai as DLLs nativas) e o antivírus pode marcar
+falso-positivo de binário empacotado — libere se necessário.
+
+### macOS
+
+Baixe `Kairos-app.zip`, descompacte e mova `Kairos.app` para `/Applications`.
+O app **não é assinado** (sem certificado Apple), então o Gatekeeper bloqueia a
+1ª execução. Abra uma vez com **botão-direito → Abrir**, ou:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Kairos.app
+```
+
+### Verificar o download
+
+```bash
+sha256sum -c SHA256SUMS    # Linux  (macOS: shasum -a 256 -c SHA256SUMS)
+```
+
+### Funcionalidades exclusivas do Linux
+
+Estas degradam para no-op em Windows/macOS (o app funciona, só sem o recurso):
+
+| Recurso | Comportamento fora do Linux |
+|---|---|
+| Notificações de desktop (`notify-send`) | silenciosamente ausentes |
+| Mini-player SimpMusic / MPRIS (`playerctl`, `gdbus`, `pactl`) | sem controle de mídia |
+| Lançar SimpMusic + windowrules Hyprland (`hyprctl`) | específico do Hyprland |
+| Keepalive de sessão NotebookLM (`systemd` timer) | usar Task Scheduler (Win) / `launchd` (Mac) — não incluído |
+| Download de áudio do YouTube (`yt-dlp` no PATH) | precisa de yt-dlp instalado em qualquer SO |
+
+Já são **portáveis** em todos os SOs: extração de PDF, transcrição Whisper,
+backends Gemini e Ollama/local, escrita no Obsidian, Discord Rich Presence.
 
 ---
 

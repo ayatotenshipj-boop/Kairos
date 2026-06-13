@@ -731,6 +731,84 @@ ApplicationWindow {
         }
     }
 
+    // ── Banner de atualização (flutuante, bottom-center) ───────────────────
+    Rectangle {
+        id: updateBanner
+        visible: backend.updateAvailable
+        anchors.bottom: parent.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottomMargin: th.spacingXl
+        z: 70
+
+        width: bannerRow.implicitWidth + th.spacingLg * 2
+        height: bannerRow.implicitHeight + th.spacingMd * 2
+        radius: th.radiusLg
+        color: th.bgElevated
+        border.width: 1
+        border.color: th.accentDefault
+
+        opacity: backend.updateAvailable ? 1 : 0
+        Behavior on opacity { enabled: !backend.reduceMotion; NumberAnimation { duration: th.durationNormal } }
+
+        RowLayout {
+            id: bannerRow
+            anchors.centerIn: parent
+            spacing: th.spacingMd
+
+            IconSvg {
+                Layout.preferredWidth: 18; Layout.preferredHeight: 18
+                stroke: th.accentDefault
+                strokeWidth: 2
+                d: "M12 3v12M7 10l5 5 5-5M5 21h14"
+            }
+
+            Text {
+                text: "Nova versão disponível: " + backend.updateVersion
+                font.family: th.fontFamily
+                font.pixelSize: th.sizeBody
+                color: th.textPrimary
+            }
+
+            Rectangle {
+                Layout.preferredHeight: 30
+                Layout.preferredWidth: dlLabel.implicitWidth + th.spacingLg * 2
+                radius: th.radiusMd
+                color: dlArea.containsMouse ? th.accentHover : th.accentDefault
+                Behavior on color { enabled: !backend.reduceMotion; ColorAnimation { duration: th.durationFast } }
+
+                Text {
+                    id: dlLabel
+                    anchors.centerIn: parent
+                    text: "Baixar"
+                    font.family: th.fontFamily
+                    font.pixelSize: th.sizeButton
+                    color: th.textOnAccent
+                }
+                MouseArea {
+                    id: dlArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: backend.openUpdatePage()
+                }
+            }
+
+            IconSvg {
+                Layout.preferredWidth: 16; Layout.preferredHeight: 16
+                stroke: closeArea.containsMouse ? th.textPrimary : th.textTertiary
+                strokeWidth: 2
+                d: "M6 6l12 12M18 6L6 18"
+                MouseArea {
+                    id: closeArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: backend.dismissUpdate()
+                }
+            }
+        }
+    }
+
     SettingsDialog { id: settingsDlg }
 
     ErrorDialog { id: errorDialog }

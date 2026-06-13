@@ -119,13 +119,19 @@ kairos/
 `--follow-imports` não captura imports lazy/dinâmicos nem data files de C-extensions. Incluir explicitamente:
 
 ```bash
---include-package=yt_dlp \
 --include-package=pymupdf \
 --include-package=pymupdf4llm \
---include-package=notebooklm_py \
+--include-package=notebooklm \
+--include-package=faster_whisper \
+--include-package=ctranslate2 \
+--include-package=av \
+--include-package=onnxruntime \
+--include-package=tokenizers \
 ```
 
 > O pacote real do PyMuPDF é `pymupdf` (não `fitz` — `fitz` é alias legado e há um pacote PyPI homônimo sem relação). Se `.so` não for empacotado, avaliar `--include-package-data`.
+>
+> `faster-whisper` importa `onnxruntime` (VAD) e `tokenizers` de forma lazy — ambos C-ext com `.so`/`.dll` não capturados por `--follow-imports`; incluí-los explicitamente. `yt-dlp` é chamado como **CLI subprocess** (não importado), então **não** entra em `--include-package` — precisa estar no PATH em runtime.
 
 ---
 

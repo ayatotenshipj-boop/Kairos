@@ -52,20 +52,45 @@ echo "Python: $(python --version)"
 # ── Flags comuns a todos os SOs ────────────────────────────────────────────
 NUITKA_ARGS=(
     --standalone
+    # Cap de paralelismo no backend C. pymupdf.mupdf é um wrapper SWIG gigante
+    # (~66k linhas) cujo .c consome muita RAM no gcc; com jobs = nº de núcleos,
+    # vários cc1 pesados simultâneos estouram a RAM (cc1 OOM-killed). jobs=2
+    # mantém o pico baixo e ainda paraleliza. Em build com pouca RAM (ex. 8GB),
+    # considere --low-memory adicional. CI sobrescreve via NUITKA_JOBS (ex. 1).
+    --jobs=${NUITKA_JOBS:-2}
     --enable-plugin=pyside6
     --include-qt-plugins=sensible,styles,platforms,qml
     --include-data-dir=kairos/ui/qml=kairos/ui/qml
     --include-data-dir=kairos/images=kairos/images
     --include-data-files=kairos/config/prompts.json=kairos/config/prompts.json
+    # O qml/plugins do Qt6 (pacman) trazem arquivos que NÃO são shared libs:
+    # objetos .o (ex. Qt/test/controls/.../qrc_*.cpp.o) e marcadores .version
+    # (módulos org/kde). O plugin pyside6 do Nuitka só ignora .a/.la/.prl e trata
+    # todo o resto como DLL; copyDllFile roda patchelf --set-rpath neles sem
+    # checar se são ELF, abortando ('wrong ELF type' / 'missing ELF header').
+    # Excluídos como DLL — .o e .version nunca são shared libs reais.
+    # fnmatch do Nuitka casa '*' através de '/'.
+    --noinclude-dlls=*.o
+    --noinclude-dlls=*.version
     --follow-imports
     --include-package=kairos.platform
     --include-package=pymupdf
     --include-package=pymupdf4llm
     --include-package=notebooklm
-    --include-package=google.genai
+    # Árvore google.* NÃO é compilada em C: demovida a bytecode (Python puro) no
+    # standalone, mas ainda incluída e importável em runtime. Motivos: os tipos
+    # autogerados de google.protobuf estouram o gcc/RAM (OOM em máquinas de build
+    # com pouca RAM, ex. Windows 8GB); google.* é I/O / serialização de rede e
+    # não ganha desempenho real com compilação C. Também acelera o build.
+    --nofollow-import-to=google
     --include-package=faster_whisper
     --include-package=ctranslate2
     --include-package=av
+    # onnxruntime (VAD) e tokenizers são importados pelo faster_whisper de forma
+    # lazy; --follow-imports não captura suas C-ext/.so → sem isto a transcrição
+    # Whisper falha em runtime com ImportError no binário empacotado.
+    --include-package=onnxruntime
+    --include-package=tokenizers
     --include-package=pypresence
     --output-dir=dist
 )
@@ -100,6 +125,11 @@ case "$OS" in
         OUT="dist/Kairos.app"
         ;;
 esac
+
+# Em runner de CI com pouca RAM, NUITKA_LOW_MEMORY=1 reduz o pico do compile C.
+if [ "${NUITKA_LOW_MEMORY:-0}" = "1" ]; then
+    NUITKA_ARGS+=(--low-memory)
+fi
 
 echo ""
 echo "Iniciando build ($OS)..."

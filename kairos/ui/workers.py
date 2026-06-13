@@ -76,6 +76,23 @@ class AuthCheckWorker(QThread):
             self.finished.emit(False, f"Não foi possível verificar a sessão: {e}")
 
 
+class UpdateCheckWorker(QThread):
+    """Consulta o último release do GitHub fora do thread da GUI.
+
+    `check_for_update` já devolve um dict e nunca lança, então não há sinal de
+    erro separado: falha de rede vira simplesmente "sem atualização".
+    """
+    finished = Signal("QVariantMap")
+
+    def run(self):
+        from kairos.integrations import update_checker
+        try:
+            self.finished.emit(update_checker.check_for_update())
+        except Exception:
+            logger.exception("Erro inesperado na verificação de atualização")
+            self.finished.emit({"available": False, "version": "", "url": "", "current": ""})
+
+
 class WriterWorker(QThread):
     finished = Signal(str, "QVariantMap")
     error = Signal(str)
