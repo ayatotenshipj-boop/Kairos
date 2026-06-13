@@ -59,7 +59,14 @@ NUITKA_ARGS=(
     # considere --low-memory adicional. CI sobrescreve via NUITKA_JOBS (ex. 1).
     --jobs=${NUITKA_JOBS:-2}
     --enable-plugin=pyside6
-    --include-qt-plugins=sensible,styles,platforms,qml
+    # Families confirmadas no PySide6 (pip do CI tem layout diferente do Qt do
+    # pacman): 'styles' e 'qml' NÃO existem como plugin families no pip e fazem
+    # o Nuitka abortar ('no such plugin family'). 'sensible' é meta-family que
+    # adapta por SO e nunca erra em family ausente; platforms/platformthemes/
+    # iconengines/imageformats são explícitas e confirmadas. QML/QtQuick não é
+    # plugin family: o plugin pyside6 auto-detecta via QQmlApplicationEngine e os
+    # .qml do app já entram por --include-data-dir abaixo.
+    --include-qt-plugins=sensible,platforms,platformthemes,iconengines,imageformats
     --include-data-dir=kairos/ui/qml=kairos/ui/qml
     --include-data-dir=kairos/images=kairos/images
     --include-data-files=kairos/config/prompts.json=kairos/config/prompts.json
@@ -87,10 +94,19 @@ NUITKA_ARGS=(
     --include-package=ctranslate2
     --include-package=av
     # onnxruntime (VAD) e tokenizers são importados pelo faster_whisper de forma
-    # lazy; --follow-imports não captura suas C-ext/.so → sem isto a transcrição
-    # Whisper falha em runtime com ImportError no binário empacotado.
+    # lazy; --follow-imports não captura suas C-ext/.so → --include-package
+    # garante que os nativos (.so/.dll/data) sejam empacotados (sem isto a
+    # transcrição Whisper falha com ImportError no binário).
+    # PORÉM, compilá-los em C dispara um AssertionError no optimizeModules do
+    # Nuitka 4.1.2 (micro_passes == 0) no Windows — classe de bug conhecida com
+    # pacotes de typing/generics pesados (cf. pydantic, #2571/#2579). Solução:
+    # --nofollow-import-to demove a bytecode (pula o pass que falha) enquanto o
+    # --include-package acima mantém os nativos no bundle. Combinação evita o
+    # crash do build SEM reintroduzir o ImportError de runtime.
     --include-package=onnxruntime
     --include-package=tokenizers
+    --nofollow-import-to=onnxruntime
+    --nofollow-import-to=tokenizers
     --include-package=pypresence
     --output-dir=dist
 )
