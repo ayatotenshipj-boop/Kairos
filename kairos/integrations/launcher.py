@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 from kairos.config import config as cfg
@@ -19,6 +20,11 @@ _WM_CLASS = "com-maxrave-simpmusic-MainKt"
 _MUSIC_WORKSPACE = "special:kairos-music"
 # Nome do player no bus MPRIS (case-sensitive) — sinal autoritativo de instância.
 _PLAYER = "SimpMusic"
+
+# Janela máxima de espera pelo SimpMusic registrar no MPRIS antes de entregar a
+# playlist, e intervalo de polling desse registro (launch em 2 fases).
+_DELIVER_TIMEOUT_S = 20.0
+_DELIVER_POLL_S = 0.5
 
 
 def _already_running() -> bool:
@@ -68,6 +74,33 @@ def _setup_background_rules() -> None:
             logger.warning(f"Erro ao registrar windowrule do SimpMusic: {e}")
 
 
+def _deliver_playlist(path: Path, url: str) -> None:
+    """Entrega a playlist (deep-link) ao SimpMusic JÁ em execução.
+
+    Passar a URL como argumento no cold start causa corrida: o deep-link chega
+    antes da stack de rede do player subir (okhttp 'executor rejected' + dislike
+    API 400 → dialog 'Unexpected Error'). Espera o player registrar no MPRIS e só
+    então entrega numa 2ª invocação single-instance — sem corrida. Best-effort:
+    no-op se o player não registrar a tempo."""
+    deadline = time.monotonic() + _DELIVER_TIMEOUT_S
+    while time.monotonic() < deadline:
+        if _already_running():
+            try:
+                # 2ª invocação: o SimpMusic é single-instance e encaminha o
+                # deep-link à instância viva, então este processo sai rápido.
+                subprocess.run(
+                    [str(path), url],
+                    timeout=10, check=False,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                logger.info("Playlist entregue ao SimpMusic via deep-link")
+            except Exception as e:
+                logger.error(f"Erro ao entregar playlist ao SimpMusic: {e}")
+            return
+        time.sleep(_DELIVER_POLL_S)
+    logger.warning("SimpMusic não registrou no MPRIS a tempo — playlist não entregue")
+
+
 def start() -> None:
     global _process
     if sys.platform != "linux":
@@ -95,17 +128,24 @@ def start() -> None:
     # Registra as regras ANTES do launch para a janela já nascer em segundo plano.
     _setup_background_rules()
 
-    # Playlist opcional: o SimpMusic aceita o deep link como argumento de linha de
-    # comando no Linux. Vazio → abre normal.
+    # Cold start SEM a playlist: passar o deep-link como argumento no lançamento
+    # inicial causa corrida (o player recebe a URI antes da stack de rede subir).
+    # A playlist é entregue depois, numa 2ª invocação, por _deliver_playlist.
     playlist_url = (config.get("music_playlist_url") or "").strip()
-    cmd = [str(path), playlist_url] if playlist_url else [str(path)]
 
     with _lock:
         try:
-            _process = subprocess.Popen(cmd)
+            _process = subprocess.Popen([str(path)])
             logger.info(f"Simpmusic iniciado em segundo plano (PID {_process.pid})")
         except Exception as e:
             logger.error(f"Erro ao iniciar Simpmusic: {e}")
+            return
+
+    # Fase 2: entrega assíncrona da playlist quando o player estiver pronto.
+    if playlist_url:
+        threading.Thread(
+            target=_deliver_playlist, args=(path, playlist_url), daemon=True
+        ).start()
 
 
 def stop() -> None:

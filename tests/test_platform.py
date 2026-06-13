@@ -222,6 +222,51 @@ class TestLauncherBackend(unittest.TestCase):
             launcher._setup_background_rules()
             mock_run.assert_not_called()
 
+    def test_cold_start_omits_playlist_arg(self):
+        """Launch em 2 fases: cold start NÃO leva a playlist como argumento
+        (evita corrida do deep-link); a entrega é agendada em thread separada."""
+        from kairos.integrations import launcher
+        import importlib
+        importlib.reload(launcher)
+        fake_cfg = {
+            "simpmusic_autostart": True,
+            "simpmusic_path": "/usr/bin/simpmusic",
+            "music_playlist_url": "https://x/playlist",
+        }
+        with patch.object(sys, "platform", "linux"), \
+             patch.object(launcher.cfg, "load", return_value=fake_cfg), \
+             patch.object(launcher, "_already_running", return_value=False), \
+             patch.object(launcher, "_setup_background_rules"), \
+             patch("pathlib.Path.exists", return_value=True), \
+             patch("threading.Thread") as mock_thread, \
+             patch("subprocess.Popen") as mock_popen:
+            mock_popen.return_value = MagicMock(pid=123)
+            launcher.start()
+            cmd = mock_popen.call_args[0][0]
+            self.assertEqual(cmd, ["/usr/bin/simpmusic"],
+                msg=f"cold start não deve levar a playlist como arg: {cmd}")
+            mock_thread.assert_called_once()
+
+    def test_deliver_playlist_second_invocation_when_ready(self):
+        """_deliver_playlist entrega a URL via 2ª invocação quando o player
+        já registrou no MPRIS."""
+        from kairos.integrations import launcher
+        with patch.object(launcher, "_already_running", return_value=True), \
+             patch("subprocess.run") as mock_run:
+            launcher._deliver_playlist(Path("/usr/bin/simpmusic"), "https://x/pl")
+            mock_run.assert_called_once()
+            self.assertEqual(mock_run.call_args[0][0],
+                ["/usr/bin/simpmusic", "https://x/pl"])
+
+    def test_deliver_playlist_noop_on_timeout(self):
+        """_deliver_playlist não invoca nada se o player nunca registrar."""
+        from kairos.integrations import launcher
+        with patch.object(launcher, "_already_running", return_value=False), \
+             patch.object(launcher, "_DELIVER_TIMEOUT_S", 0.0), \
+             patch("subprocess.run") as mock_run:
+            launcher._deliver_playlist(Path("/usr/bin/simpmusic"), "https://x")
+            mock_run.assert_not_called()
+
 
 # ── PASSO 2.5 — Bug fix yt-dlp ────────────────────────────────────────────
 
