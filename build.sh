@@ -52,6 +52,9 @@ echo "Python: $(python --version)"
 # ── Flags comuns a todos os SOs ────────────────────────────────────────────
 NUITKA_ARGS=(
     --standalone
+    # CI é não-interativo: o Nuitka pediria confirmação p/ baixar ccache (e gcc
+    # no Windows) e travaria/abortaria sem TTY. Auto-aceita os downloads.
+    --assume-yes-for-downloads
     # Cap de paralelismo no backend C. pymupdf.mupdf é um wrapper SWIG gigante
     # (~66k linhas) cujo .c consome muita RAM no gcc; com jobs = nº de núcleos,
     # vários cc1 pesados simultâneos estouram a RAM (cc1 OOM-killed). jobs=2
@@ -97,16 +100,18 @@ NUITKA_ARGS=(
     # lazy; --follow-imports não captura suas C-ext/.so → --include-package
     # garante que os nativos (.so/.dll/data) sejam empacotados (sem isto a
     # transcrição Whisper falha com ImportError no binário).
-    # PORÉM, compilá-los em C dispara um AssertionError no optimizeModules do
-    # Nuitka 4.1.2 (micro_passes == 0) no Windows — classe de bug conhecida com
-    # pacotes de typing/generics pesados (cf. pydantic, #2571/#2579). Solução:
-    # --nofollow-import-to demove a bytecode (pula o pass que falha) enquanto o
-    # --include-package acima mantém os nativos no bundle. Combinação evita o
-    # crash do build SEM reintroduzir o ImportError de runtime.
+    # PORÉM, compilar onnxruntime em C dispara um AssertionError no optimizeModules
+    # do Nuitka 4.1.2 (micro_passes == 0) — específico do Windows: o macOS compilou
+    # os MESMOS pacotes sem erro, então é um code path Windows/MSVC, não do pacote.
+    # onnxruntime é o suspeito (typing/generics pesados, cf. pydantic #2571/#2579).
+    # Isolar primeiro o onnxruntime: --nofollow-import-to demove-o a bytecode (pula
+    # o pass que falha) enquanto --include-package mantém os nativos no bundle —
+    # evita o crash SEM reintroduzir o ImportError de runtime. tokenizers segue
+    # COMPILADO (macOS provou que compila ok); se o assert persistir no Windows,
+    # adicionar --nofollow-import-to=tokenizers na próxima iteração.
     --include-package=onnxruntime
     --include-package=tokenizers
     --nofollow-import-to=onnxruntime
-    --nofollow-import-to=tokenizers
     --include-package=pypresence
     --output-dir=dist
 )

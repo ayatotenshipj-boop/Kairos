@@ -61,9 +61,26 @@ jobs:
             source .venv/Scripts/activate
           fi
           python -m pip install --upgrade pip
-          pip install -c .github/constraints.txt PySide6
+          # PySide6 (meta) deveria puxar Addons + Essentials, mas o Linux runner
+          # vinha sem o QtQuick/QML (families 'qml'/'styles' ausentes) — Addons
+          # explícito garante a variante completa, igual macOS/Windows.
+          pip install -c .github/constraints.txt PySide6 PySide6-Addons
           pip install -c .github/constraints.txt -r requirements.txt
           pip install -c .github/constraints.txt -r requirements-dev.txt
+
+      # Diagnóstico: revela a variante real de PySide6 e as plugin families por SO
+      # (Linux vinha divergindo de macOS/Windows). Barato; ajuda a confirmar FIX 1.
+      - name: Diagnose PySide6 (variant + plugin families)
+        shell: bash
+        run: |
+          if [ -f .venv/bin/activate ]; then source .venv/bin/activate; else source .venv/Scripts/activate; fi
+          pip show PySide6 PySide6-Addons PySide6-Essentials || true
+          python - <<'PY'
+          import pathlib, PySide6
+          p = pathlib.Path(PySide6.__file__).parent / "Qt" / "plugins"
+          fams = sorted(d.name for d in p.iterdir() if d.is_dir()) if p.exists() else "<sem dir plugins>"
+          print("PLUGIN FAMILIES:", fams)
+          PY
 
       # build.sh é multi-SO (detecta uname). shell:bash → roda no git-bash do
       # windows-latest [A4]. NUITKA_JOBS=1 + LOW_MEMORY p/ não estourar RAM no
