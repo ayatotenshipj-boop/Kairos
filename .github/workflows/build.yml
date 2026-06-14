@@ -1,11 +1,25 @@
 name: build
 
 # Build standalone multi-SO via Nuitka (reaproveita o build.sh, que detecta o SO).
-# Dispara em push de tag vX.Y.Z (gera release) ou manualmente (só artifacts).
+# Dispara em: push de tag vX.Y.Z (build + release), push na main que mexe em
+# arquivo de build (só artifacts) ou disparo manual (só artifacts).
 on:
   push:
+    # Tags vX.Y.Z → build + release. Criação de tag tem before=0000… (sem base
+    # p/ diff), então o filtro `paths` abaixo NÃO se aplica a tags — o release
+    # nunca é bloqueado por path filter.
     tags:
       - 'v*'
+    # Push na main roda a matriz só quando muda arquivo de build — economiza
+    # minutos em commits de UI/pipeline. NÃO cobre quebra de build induzida por
+    # mudança em kairos/** (pra isso: workflow_dispatch ou tag).
+    branches:
+      - main
+    paths:
+      - 'build.sh'
+      - '.github/workflows/build.yml'
+      - 'requirements*.txt'
+      - '.github/constraints.txt'
   workflow_dispatch:
 
 # Permissão mínima por padrão; o job de release eleva para contents:write.
