@@ -62,14 +62,18 @@ NUITKA_ARGS=(
     # considere --low-memory adicional. CI sobrescreve via NUITKA_JOBS (ex. 1).
     --jobs=${NUITKA_JOBS:-2}
     --enable-plugin=pyside6
-    # Families confirmadas no PySide6 (pip do CI tem layout diferente do Qt do
-    # pacman): 'styles' e 'qml' NÃO existem como plugin families no pip e fazem
-    # o Nuitka abortar ('no such plugin family'). 'sensible' é meta-family que
-    # adapta por SO e nunca erra em family ausente; platforms/platformthemes/
-    # iconengines/imageformats são explícitas e confirmadas. QML/QtQuick não é
-    # plugin family: o plugin pyside6 auto-detecta via QQmlApplicationEngine e os
-    # .qml do app já entram por --include-data-dir abaixo.
-    --include-qt-plugins=sensible,platforms,platformthemes,iconengines,imageformats
+    # 'sensible' é meta-family do Nuitka: inclui imageformats/iconengines/
+    # platforms/platformthemes/styles/tls/... porém só as que EXISTEM (guarda
+    # hasPluginFamily em _getSensiblePlugins) — nunca aborta por family ausente e
+    # adapta por SO. 'platformthemes' existe no PySide6 pip do LINUX mas NÃO no
+    # Windows/macOS; passado EXPLÍCITO, o Nuitka aborta com FATAL 'no Qt plugin
+    # family platformthemes' (falha em ~4s no macOS, ~17s no Windows). Por isso
+    # NÃO entra explícito: no Linux o 'sensible' já o inclui; no Win/macOS é
+    # corretamente omitido. platforms/iconengines/imageformats são confirmadas
+    # nos 3 SOs (explícitas só como garantia). QML/QtQuick não é plugin family: o
+    # plugin pyside6 auto-detecta via QQmlApplicationEngine e os .qml entram por
+    # --include-data-dir abaixo.
+    --include-qt-plugins=sensible,platforms,iconengines,imageformats
     --include-data-dir=kairos/ui/qml=kairos/ui/qml
     --include-data-dir=kairos/images=kairos/images
     --include-data-files=kairos/config/prompts.json=kairos/config/prompts.json
